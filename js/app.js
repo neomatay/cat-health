@@ -26,6 +26,7 @@ createApp({
   setup() {
     // ========== 全局状态 ==========
     var activeTab = ref('today');
+    var showCatMenu = ref(false);
     var loading = ref(false);
     var toastMsg = ref('');
     var toastTimer = null;
@@ -45,7 +46,7 @@ createApp({
     // ========== 弹层状态 ==========
     var modal = reactive({
       addCat: false, editCat: false,
-      addWeight: false, addTemp: false,
+      addWeight: false, addTemp: false, quickRecord: false,
       addPlan: false, editPlan: false,
       joinFamily: false, importData: false
     });
@@ -63,11 +64,118 @@ createApp({
     var importText = ref('');
     var errors = reactive({});
 
+    // ========== lucide 风格内联线性图标 ==========
+    var ICON_PATHS = {
+      home: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/>',
+      chart: '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m19 9-5 5-4-4-3 3"/>',
+      pill: '<path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/>',
+      users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+      weight: '<circle cx="12" cy="5" r="3"/><path d="M6.5 8h11a2 2 0 0 1 1.9 1.4l2.3 8.1A2 2 0 0 1 19.8 21H4.2a2 2 0 0 1-1.9-2.5l2.3-8.1A2 2 0 0 1 6.5 8Z"/>',
+      thermometer: '<path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/>',
+      plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+      chevron: '<path d="m9 18 6-6-6-6"/>',
+      check: '<path d="M20 6 9 17l-5-5"/>',
+      x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+      bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+      more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+      share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/>',
+      shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+      heart: '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/><path d="M3.2 12h4.3l.5-2 2 4.5 2-7 1.5 3.5h4.3"/>',
+      feather: '<path d="M12.67 19a2 2 0 0 0 1.42-.59l6.36-6.36a4.95 4.95 0 0 0-7-7l-8.5 8.5a4.95 4.95 0 0 0 7 7Z"/><path d="M16 8 2 22"/><path d="M17.5 15H9"/>',
+      paw: '<circle cx="11" cy="4" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="4" cy="8" r="2"/><circle cx="20" cy="16" r="2"/><path d="M9 10a5 5 0 0 1 5 5v3.5a3.5 3.5 0 0 1-6.84 1.05Q6.52 17.48 4.46 16.84A3.5 3.5 0 0 1 5.5 10Z"/>',
+      activity: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+      calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/>',
+      copy: '<rect x="8" y="8" width="14" height="14" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+      download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>',
+      upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>',
+      edit: '<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>'
+    };
+    function iconSvg(name, size) {
+      var s = size || 20;
+      return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + (ICON_PATHS[name] || '') + '</svg>';
+    }
+
     // ========== 计算属性 ==========
     var currentCat = computed(function () {
       return cats.value.find(function (c) { return c.id === currentCatId.value; }) || null;
     });
     var hasCats = computed(function () { return cats.value.length > 0; });
+
+    // ========== 首页总览数据 ==========
+    var greeting = computed(function () {
+      var h = new Date().getHours();
+      if (h < 6) return '夜深了'; if (h < 12) return '早上好';
+      if (h < 18) return '下午好'; return '晚上好';
+    });
+    var todayLabel = computed(function () {
+      var d = new Date();
+      return (d.getMonth() + 1) + '月' + d.getDate() + '日 周' + WD_NAMES[d.getDay()];
+    });
+    function latestOf(arr) { return arr.value.length ? arr.value[arr.value.length - 1] : null; }
+    var latestWeight = computed(function () { return latestOf(weights); });
+    var latestTemp = computed(function () { return latestOf(temps); });
+    // 与上一条体重的差值文案
+    var weightDelta = computed(function () {
+      var n = weights.value.length;
+      if (n < 2) return '暂无对比数据';
+      var diff = parseFloat(weights.value[n - 1].kg) - parseFloat(weights.value[n - 2].kg);
+      return '较上次 ' + (diff >= 0 ? '+' : '') + diff.toFixed(2) + ' kg';
+    });
+    var tempStatus = computed(function () {
+      if (!latestTemp.value) return { text: '暂无数据', cls: '' };
+      var c = parseFloat(latestTemp.value.celsius);
+      if (c < 38.0) return { text: '偏低，注意保暖', cls: 'warm' };
+      if (c > 39.2) return { text: '偏高，建议就医', cls: 'warm' };
+      return { text: '处于正常范围', cls: 'ok' };
+    });
+    // 今日用药进度
+    var doseDone = computed(function () { return todayTasks.value.filter(function (t) { return t.status === 'taken'; }).length; });
+    var doseTotal = computed(function () { return todayTasks.value.length; });
+    var nextDose = computed(function () {
+      return todayTasks.value.find(function (t) { return t.status === 'pending' || t.status === 'overdue'; }) || null;
+    });
+    // 护理提示：最近 3 条体重极差超过 5% 时显示
+    var careTip = computed(function () {
+      var arr = weights.value.slice(-3);
+      if (arr.length < 3) return '';
+      var vals = arr.map(function (w) { return parseFloat(w.kg); });
+      var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
+      if (min > 0 && (max - min) / min > 0.05) return '近期体重波动超过 5%，建议关注饮食与精神状态，必要时就医。';
+      return '连续 3 天体重变化超过 5% 时，建议复查饮食与就诊计划。';
+    });
+    // 趋势页近期记录（当前指标最近 5 条，倒序，可点击编辑）
+    var trendRecords = computed(function () {
+      var isW = trendMetric.value === 'weight';
+      var arr = (isW ? weights.value : temps.value).slice(-5).reverse();
+      return arr.map(function (r) {
+        return {
+          type: isW ? 'weight' : 'temp', id: r.id, cat_id: r.cat_id, date: r.date,
+          kg: r.kg, celsius: r.celsius, note: r.note,
+          val: isW ? r.kg + ' kg' : r.celsius + ' °C'
+        };
+      });
+    });
+    // 猫咪年龄（x岁x个月 / x个月）
+    function catAge(cat) {
+      if (!cat || !cat.birthday) return '';
+      var b = new Date(cat.birthday + 'T00:00:00'), now = new Date();
+      var m = (now.getFullYear() - b.getFullYear()) * 12 + now.getMonth() - b.getMonth();
+      if (now.getDate() < b.getDate()) m--;
+      if (m < 0) return '';
+      if (m < 12) return m + ' 个月';
+      var y = Math.floor(m / 12), r = m % 12;
+      return r ? y + ' 岁 ' + r + ' 个月' : y + ' 岁';
+    }
+    function editCurrentCat() { if (currentCat.value) openEditCat(currentCat.value); }
+    // FAB 快捷记录：选择体重或体温
+    function openQuickRecord() {
+      if (!currentCatId.value) { showToast('请先添加猫咪'); return; }
+      modal.quickRecord = true;
+    }
+    function pickRecordType(t) {
+      modal.quickRecord = false;
+      if (t === 'weight') openAddWeight(); else openAddTemp();
+    }
 
     // 剂量解析：把存量文本（"0.5 片"/"半片"/"250mg"）拆成 数字+单位，拆不出则留空待用户重填
     function parseDose(dose) {
@@ -550,18 +658,19 @@ createApp({
       var valKey = isWeight ? 'kg' : 'celsius';
       var dates = data.map(function (r) { return r.date; });
       var vals = data.map(function (r) { return parseFloat(r[valKey]); });
-      // 最新值（默认定位点）放大标红，进页面即聚焦
+      // 最新值（默认定位点）放大高亮，进页面即聚焦
       var lastIdx = vals.length - 1;
+      var accent = isWeight ? '#237a5c' : '#d35d46';
       var seriesData = vals.map(function (v, i) {
-        if (i === lastIdx) return { value: v, symbolSize: 10, itemStyle: { color: '#ff3b30', borderColor: '#fff', borderWidth: 2 } };
+        if (i === lastIdx) return { value: v, symbolSize: 10, itemStyle: { color: '#fff', borderColor: accent, borderWidth: 3 } };
         return v;
       });
 
       var series = {
         name: isWeight ? '体重' : '体温', type: 'line', data: seriesData, smooth: true,
-        symbol: 'circle', symbolSize: 6, lineStyle: { width: 2, color: isWeight ? '#ff7a7a' : '#007aff' },
-        itemStyle: { color: isWeight ? '#ff7a7a' : '#007aff' },
-        areaStyle: { color: isWeight ? 'rgba(255,122,122,0.1)' : 'rgba(0,122,255,0.1)' }
+        symbol: 'circle', symbolSize: 6, lineStyle: { width: 3, color: accent },
+        itemStyle: { color: accent },
+        areaStyle: { color: isWeight ? 'rgba(35,122,92,0.08)' : 'rgba(211,93,70,0.08)' }
       };
       var option = {
         grid: { left: 48, right: 20, top: 32, bottom: 34 },
@@ -717,12 +826,16 @@ createApp({
 
     // ========== 暴露 ==========
     return {
-      activeTab, loading, toastMsg, cats, currentCatId, currentCat, hasCats,
+      activeTab, showCatMenu, loading, toastMsg, cats, currentCatId, currentCat, hasCats,
       weights, temps, plans, allLogs, todayTasks, todayPending, recentRecords, planList,
       trendMetric, trendRange, chartRef, trendStats,
       modal, catForm, editingCatId, weightForm, tempForm, planForm, editingPlanId,
       joinCode, importText, errors,
       isSync, getFamilyId,
+      // v2.0 首页总览
+      greeting, todayLabel, latestWeight, latestTemp, weightDelta, tempStatus,
+      doseDone, doseTotal, nextDose, careTip, trendRecords,
+      iconSvg, catAge, editCurrentCat, openQuickRecord, pickRecordType,
       switchTab, switchCat, showToast,
       markTaken, markSkipped,
       openAddWeight, openAddTemp, saveWeight, saveTemp, openEditRecord, deleteWeightRecord, deleteTempRecord,

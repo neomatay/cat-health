@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#ff7a7a" />
+  <meta name="theme-color" content="#f5f8f5" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="猫咪健康" />
@@ -11,293 +11,389 @@
   <link rel="apple-touch-icon" href="icon.svg" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <title>猫咪健康</title>
-  <link rel="stylesheet" href="css/style.css?v=1.6" />
+  <link rel="stylesheet" href="css/style.css?v=2.0" />
   <style>[v-cloak] { display: none; }</style>
 </head>
 <body>
 <div id="app" v-cloak>
+<div class="app-shell">
 
-  <!-- ========== 顶部导航 ========== -->
-  <div class="nav-bar">
-    <div>
-      <div class="nav-title">
-        <span v-if="activeTab==='today'">今天</span>
-        <span v-else-if="activeTab==='trend'">趋势</span>
-        <span v-else-if="activeTab==='meds'">用药</span>
-        <span v-else>我的</span>
+  <!-- ========== 顶栏：猫咪切换 + 快捷按钮 ========== -->
+  <header class="topbar">
+    <div class="topbar-cat">
+      <button class="cat-switcher" type="button" @click="showCatMenu = !showCatMenu">
+        <span class="cat-avatar small">
+          <img v-if="currentCat && currentCat.avatar" :src="currentCat.avatar" alt="">
+          <span v-else class="cat-avatar-fallback">🐱</span>
+        </span>
+        <span class="cat-switcher-text">
+          <b>{{ currentCat ? currentCat.name : '猫咪健康' }}</b>
+          <small>家庭档案</small>
+        </span>
+        <span class="ic" v-html="iconSvg('chevron',16)"></span>
+      </button>
+      <div class="cat-menu-mask" v-if="showCatMenu" @click="showCatMenu=false"></div>
+      <div class="cat-menu" v-if="showCatMenu">
+        <div v-for="c in cats" :key="c.id" class="cat-menu-item" :class="{active: c.id===currentCatId}"
+             @click="switchCat(c.id); showCatMenu=false">
+          <span class="cat-avatar xs"><img v-if="c.avatar" :src="c.avatar" alt=""><span v-else class="cat-avatar-fallback">🐱</span></span>
+          {{ c.name }}
+        </div>
+        <div class="cat-menu-item add" @click="showCatMenu=false; openAddCat()">＋ 添加猫咪</div>
       </div>
-      <div class="nav-sub" v-if="currentCat">{{ currentCat.name }}</div>
     </div>
-    <div class="nav-right">
-      <button class="btn btn-icon btn-ghost" @click="openAddCat" title="添加猫咪">+</button>
+    <div class="topbar-actions">
+      <button class="icon-button" type="button" aria-label="用药提醒说明"
+              @click="showToast('在用药计划中「生成提醒日历」，系统日历会按时提醒你')"
+              v-html="iconSvg('bell',19)"></button>
+      <button class="icon-button" type="button" aria-label="家庭与设置" @click="switchTab('me')" v-html="iconSvg('more',19)"></button>
     </div>
-  </div>
+  </header>
 
-  <!-- ========== 内容区 ========== -->
-  <div class="content">
-
-    <!-- ==================== 今天 Tab ==================== -->
+  <main>
+    <!-- ==================== 首页 ==================== -->
     <div v-show="activeTab==='today'">
       <template v-if="hasCats">
-        <!-- 猫咪切换器 -->
-        <div class="cat-switcher">
-          <div v-for="c in cats" :key="c.id" class="cat-chip" :class="{active: c.id===currentCatId}" @click="switchCat(c.id)">
-            <img v-if="c.avatar" class="cat-avatar-sm" :src="c.avatar" alt=""><span v-else class="cat-emoji">🐱</span>{{ c.name }}
+        <section class="welcome-row">
+          <div>
+            <p class="eyebrow">{{ todayLabel }}</p>
+            <h1>{{ greeting }}</h1>
           </div>
-          <div class="cat-chip" @click="openAddCat" style="color:var(--text-secondary)">+ 添加</div>
-        </div>
+          <span class="day-orb" v-html="iconSvg('paw',22)"></span>
+        </section>
 
-        <!-- 今日用药 -->
-        <div class="card">
-          <div class="card-title">今日用药 · {{ todayPending }} 项待办</div>
-          <div v-if="todayTasks.length===0" class="empty-state" style="padding:20px">
-            <div class="es-icon">💊</div>
-            <div class="es-text">今日无用药提醒</div>
+        <!-- 猫咪照片卡 + 下一次用药卡 -->
+        <section class="overview-grid">
+          <article class="cat-profile" @click="editCurrentCat">
+            <img v-if="currentCat && currentCat.avatar" :src="currentCat.avatar" alt="">
+            <div v-else class="cat-profile-fallback">🐱</div>
+            <div class="cat-profile-copy">
+              <span>今日状态</span>
+              <strong>{{ currentCat.name }}</strong>
+              <small>{{ currentCat.breed || '小可爱' }}<template v-if="catAge(currentCat)"> · {{ catAge(currentCat) }}</template></small>
+            </div>
+          </article>
+          <article class="medication-focus" @click="switchTab('meds')">
+            <div class="medication-focus-top">
+              <span class="focus-icon" v-html="iconSvg('pill',15)"></span><span>下一次用药</span>
+            </div>
+            <template v-if="nextDose">
+              <strong>{{ nextDose.time }}</strong>
+              <p>{{ nextDose.plan.drug }}<template v-if="nextDose.plan.dose"> · {{ nextDose.plan.dose }}</template></p>
+            </template>
+            <template v-else>
+              <strong>{{ doseTotal ? '今日已完成' : '今日无安排' }}</strong>
+              <p>{{ doseTotal ? '所有药物都已喂完' : '没有待服用的药物' }}</p>
+            </template>
+            <div class="dose-progress"><span :style="{width: (doseTotal ? doseDone/doseTotal*100 : 0) + '%'}"></span></div>
+            <small>{{ doseDone }}/{{ doseTotal }} 剂已记录</small>
+          </article>
+        </section>
+
+        <!-- 最新指标 -->
+        <section class="section-block">
+          <div class="section-header">
+            <h2>最新指标</h2>
+            <button class="text-action" type="button" @click="openQuickRecord">记录数据 <span class="ic" v-html="iconSvg('chevron',15)"></span></button>
           </div>
-          <div v-else>
-            <div v-for="(task, i) in todayTasks" :key="i" class="task-item" :class="{taken: task.status==='taken', overdue: task.status==='overdue'}">
-              <div class="task-time">{{ task.time }}</div>
-              <div class="task-info">
-                <div class="task-drug">{{ task.plan.drug }}</div>
-                <div class="task-dose" v-if="task.plan.dose">{{ task.plan.dose }}</div>
+          <div class="metrics-row">
+            <article class="metric-card" @click="trendMetric='weight'; switchTab('trend')">
+              <div><span class="metric-glyph weight" v-html="iconSvg('weight',17)"></span><span>体重</span></div>
+              <strong>{{ latestWeight ? parseFloat(latestWeight.kg).toFixed(2) : '--' }} <em>kg</em></strong>
+              <p>{{ weightDelta }}</p>
+            </article>
+            <article class="metric-card" @click="trendMetric='temp'; switchTab('trend')">
+              <div><span class="metric-glyph temperature" v-html="iconSvg('thermometer',18)"></span><span>体温</span></div>
+              <strong>{{ latestTemp ? parseFloat(latestTemp.celsius).toFixed(1) : '--' }} <em>°C</em></strong>
+              <p :class="tempStatus.cls">{{ tempStatus.text }}</p>
+            </article>
+          </div>
+        </section>
+
+        <!-- 今天的健康安排（时间线） -->
+        <section class="section-block">
+          <div class="section-header">
+            <h2>今天的健康安排</h2>
+            <span class="count-label">{{ doseTotal }} 项</span>
+          </div>
+          <div class="timeline-list" v-if="todayTasks.length">
+            <div v-for="(t, i) in todayTasks" :key="i" class="timeline-row" :class="t.status">
+              <time>{{ t.time }}</time>
+              <span class="timeline-dot" v-html="iconSvg('pill',14)"></span>
+              <div>
+                <strong>{{ t.plan.drug }}</strong>
+                <p>{{ t.plan.dose || '按医嘱' }}<template v-if="t.status==='taken' && t.log && t.log.taken_at"> · {{ fmtDateTime(t.log.taken_at) }} 已喂</template></p>
               </div>
-              <div v-if="task.status==='taken'" class="task-status taken">
-                ✓ 已喂<span v-if="task.log && task.log.taken_at"><br>{{ fmtDateTime(task.log.taken_at) }}</span>
-              </div>
-              <div v-else class="task-actions">
-                <span v-if="task.status==='overdue'" class="task-status overdue" style="margin-right:4px">已错过</span>
-                <button class="btn btn-sm btn-green" @click="markTaken(task)">喂了</button>
-                <button class="btn btn-sm btn-ghost" @click="markSkipped(task)">跳过</button>
-              </div>
+              <button v-if="t.status==='pending' || t.status==='overdue'" class="mini-command" type="button" @click="markTaken(t)">已喂</button>
+              <span v-else-if="t.status==='taken'" class="status done">已喂</span>
+              <span v-else class="status missed">已跳过</span>
             </div>
           </div>
-        </div>
-
-        <!-- 快速记录 -->
-        <div class="quick-grid">
-          <button class="quick-btn" @click="openAddWeight">
-            <span class="qb-icon">⚖️</span>
-            <span class="qb-label">记体重</span>
-          </button>
-          <button class="quick-btn" @click="openAddTemp">
-            <span class="qb-icon">🌡️</span>
-            <span class="qb-label">记体温</span>
-          </button>
-        </div>
-
-        <!-- 最近记录 -->
-        <div class="card" v-if="recentRecords.length">
-          <div class="card-title">最近记录 <span class="text-secondary text-sm" style="font-weight:normal">（点击可编辑）</span></div>
-          <div v-for="(r, i) in recentRecords" :key="i" class="record-row" @click="openEditRecord(r)" style="cursor:pointer">
-            <div class="rec-left">
-              <span class="rec-val">{{ r.val }}</span>
-              <span class="rec-date">{{ fmtDate(r.date) }}</span>
-              <span class="rec-note" v-if="r.note">{{ r.note }}</span>
-            </div>
-            <span class="badge" :class="r.type==='weight' ? 'badge-orange' : 'badge-gray'">
-              {{ r.type==='weight' ? '体重' : '体温' }}
-            </span>
-            <span class="text-secondary">›</span>
+          <div v-else class="empty-block">
+            <span class="empty-paw" v-html="iconSvg('paw',26)"></span>
+            <p>今天没有健康安排<br><small>{{ currentCat.name }}可以安心撒欢～新增用药计划后会出现在这里</small></p>
+            <button class="mini-command" type="button" @click="switchTab('meds')">去添加计划</button>
           </div>
-        </div>
+        </section>
+
+        <!-- 护理提示 -->
+        <section class="care-tip" v-if="careTip">
+          <span v-html="iconSvg('feather',20)"></span><p>{{ careTip }}</p>
+        </section>
       </template>
 
       <!-- 无猫咪空态 -->
-      <div v-else class="empty-state">
-        <div class="es-icon">🐱</div>
-        <div class="es-text">还没有添加猫咪<br>点击下方按钮开始记录</div>
-        <button class="btn btn-primary" @click="openAddCat">添加猫咪</button>
+      <div v-else class="empty-page">
+        <span class="empty-paw-lg" v-html="iconSvg('paw',44)"></span>
+        <p>还没有添加猫咪<br><small>点击下方按钮，为它建立健康档案</small></p>
+        <button class="primary-command" type="button" @click="openAddCat"><span v-html="iconSvg('plus',17)"></span>添加猫咪</button>
       </div>
     </div>
 
-    <!-- ==================== 趋势 Tab ==================== -->
+    <!-- ==================== 趋势 ==================== -->
     <div v-show="activeTab==='trend'">
       <template v-if="hasCats">
-        <!-- 猫咪切换器 -->
-        <div class="cat-switcher">
-          <div v-for="c in cats" :key="c.id" class="cat-chip" :class="{active: c.id===currentCatId}" @click="switchCat(c.id)">
-            <img v-if="c.avatar" class="cat-avatar-sm" :src="c.avatar" alt=""><span v-else class="cat-emoji">🐱</span>{{ c.name }}
-          </div>
+        <section class="page-heading">
+          <p class="eyebrow">健康趋势</p>
+          <h1>看见细微变化</h1>
+          <p class="subtle">每一次记录都会留在 {{ currentCat.name }} 的档案中。</p>
+        </section>
+
+        <div class="segmented">
+          <button type="button" :class="{selected: trendMetric==='weight'}" @click="trendMetric='weight'"><span v-html="iconSvg('weight',16)"></span>体重</button>
+          <button type="button" :class="{selected: trendMetric==='temp'}" @click="trendMetric='temp'"><span v-html="iconSvg('thermometer',16)"></span>体温</button>
+        </div>
+        <div class="segmented thin">
+          <button type="button" :class="{selected: trendRange==='7'}" @click="trendRange='7'">近7天</button>
+          <button type="button" :class="{selected: trendRange==='30'}" @click="trendRange='30'">近30天</button>
+          <button type="button" :class="{selected: trendRange==='all'}" @click="trendRange='all'">全部</button>
         </div>
 
-        <!-- 指标切换 -->
-        <div class="seg-control">
-          <button :class="{active: trendMetric==='weight'}" @click="trendMetric='weight'">体重</button>
-          <button :class="{active: trendMetric==='temp'}" @click="trendMetric='temp'">体温</button>
-        </div>
-        <!-- 时间范围 -->
-        <div class="seg-control">
-          <button :class="{active: trendRange==='7'}" @click="trendRange='7'">近7天</button>
-          <button :class="{active: trendRange==='30'}" @click="trendRange='30'">近30天</button>
-          <button :class="{active: trendRange==='all'}" @click="trendRange='all'">全部</button>
-        </div>
+        <section class="trend-summary">
+          <div><span>最近一次</span><strong>{{ trendStats.current }}</strong></div>
+          <div><span>区间变化</span><strong>{{ trendStats.change }}</strong></div>
+          <div><span>记录次数</span><strong>{{ trendStats.count }}</strong></div>
+        </section>
 
-        <!-- 统计卡 -->
-        <div class="stat-grid">
-          <div class="stat-card">
-            <div class="stat-label">当前值</div>
-            <div class="stat-value">{{ trendStats.current }}</div>
+        <section class="chart-section">
+          <div class="chart-title">
+            <div>
+              <span>{{ trendMetric==='weight' ? '体重变化' : '体温变化' }}</span>
+              <p>{{ trendMetric==='weight' ? '建议每周固定时段称重' : '正常范围 38.0 - 39.2 °C' }}</p>
+            </div>
+            <span class="ic-green" v-html="iconSvg('activity',20)"></span>
           </div>
-          <div class="stat-card">
-            <div class="stat-label">区间变化</div>
-            <div class="stat-value">{{ trendStats.change }}</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">记录次数</div>
-            <div class="stat-value">{{ trendStats.count }}</div>
-          </div>
-        </div>
-
-        <!-- 图表 -->
-        <div class="card">
           <div class="chart-box" ref="chartRef"></div>
-          <div v-if="trendStats.count===0" class="empty-state" style="padding:20px;margin-top:-180px;position:relative;z-index:1;pointer-events:none">
-            <div class="es-icon">📊</div>
-            <div class="es-text">暂无{{ trendMetric==='weight' ? '体重' : '体温' }}数据</div>
+          <div v-if="trendStats.count===0" class="empty-block small"><p>暂无{{ trendMetric==='weight' ? '体重' : '体温' }}数据</p></div>
+        </section>
+
+        <section class="section-block">
+          <div class="section-header">
+            <h2>近期记录</h2>
+            <span class="count-label">点击可编辑</span>
           </div>
-        </div>
+          <div class="record-list" v-if="trendRecords.length">
+            <div v-for="r in trendRecords" :key="r.id" class="record-item" @click="openEditRecord(r)">
+              <span class="metric-glyph" :class="r.type==='weight' ? 'weight' : 'temperature'"
+                    v-html="iconSvg(r.type==='weight' ? 'weight' : 'thermometer',17)"></span>
+              <div>
+                <strong>{{ r.val }}</strong>
+                <p>{{ fmtDate(r.date) }}<template v-if="r.note"> · {{ r.note }}</template></p>
+              </div>
+              <span class="ic-gray" v-html="iconSvg('chevron',17)"></span>
+            </div>
+          </div>
+          <div v-else class="empty-block small"><p>暂无记录，点底部 + 记一条</p></div>
+        </section>
       </template>
-      <div v-else class="empty-state">
-        <div class="es-icon">📊</div>
-        <div class="es-text">添加猫咪后查看趋势</div>
+      <div v-else class="empty-page">
+        <span class="empty-paw-lg" v-html="iconSvg('paw',44)"></span>
+        <p>添加猫咪后查看趋势</p>
       </div>
     </div>
 
-    <!-- ==================== 用药 Tab ==================== -->
+    <!-- ==================== 用药 ==================== -->
     <div v-show="activeTab==='meds'">
       <template v-if="hasCats">
-        <div class="cat-switcher">
-          <div v-for="c in cats" :key="c.id" class="cat-chip" :class="{active: c.id===currentCatId}" @click="switchCat(c.id)">
-            <img v-if="c.avatar" class="cat-avatar-sm" :src="c.avatar" alt=""><span v-else class="cat-emoji">🐱</span>{{ c.name }}
+        <section class="page-heading page-heading-inline">
+          <div><p class="eyebrow">用药管理</p><h1>每一剂都有记录</h1></div>
+          <button class="icon-button" type="button" aria-label="新增用药计划" @click="openAddPlan" v-html="iconSvg('plus',20)"></button>
+        </section>
+
+        <!-- 今日进度 hero -->
+        <section class="dose-hero">
+          <div>
+            <span>今日进度</span>
+            <strong>{{ doseDone }} <em>/ {{ doseTotal }}</em></strong>
+            <p>剂次已完成</p>
           </div>
-        </div>
+          <div class="round-progress" :style="{'--progress': (doseTotal ? doseDone/doseTotal*360 : 0) + 'deg'}"
+               v-html="iconSvg('pill',22)"></div>
+        </section>
 
-        <button class="btn btn-outline btn-block mb-16" @click="openAddPlan">+ 新增用药计划</button>
-
-        <div v-if="planList.length===0" class="empty-state">
-          <div class="es-icon">💊</div>
-          <div class="es-text">暂无用药计划</div>
-        </div>
-
-        <div v-for="(item, i) in planList" :key="i" class="plan-item" :class="{inactive: !item.plan.active}">
-          <div class="plan-head">
-            <div>
-              <div class="plan-drug">{{ item.plan.drug }}</div>
-              <div class="plan-detail" v-if="item.plan.dose">剂量: {{ item.plan.dose }}</div>
-              <div class="plan-detail">{{ freqText(item.plan) }} · 用药 {{ (item.plan.remind_times||[]).join('、') }}<template v-if="item.plan.remind_before"> · 提前{{ item.plan.remind_before }}分钟提醒</template></div>
-              <div class="plan-detail">{{ item.plan.start_date }} ~ {{ item.plan.end_date || '长期' }}</div>
+        <!-- 今天 -->
+        <section class="section-block">
+          <div class="section-header">
+            <h2>今天</h2>
+            <span class="date-label">{{ todayLabel.split(' ')[0] }}</span>
+          </div>
+          <div class="dose-list" v-if="todayTasks.length">
+            <div v-for="(t, i) in todayTasks" :key="i" class="dose-card">
+              <div class="dose-card-main">
+                <span class="dose-time">{{ t.time }}</span>
+                <div>
+                  <h3>{{ t.plan.drug }}</h3>
+                  <p>{{ t.plan.dose || '按医嘱' }}<template v-if="t.status==='taken' && t.log && t.log.taken_at"> · {{ fmtDateTime(t.log.taken_at) }} 已喂</template></p>
+                </div>
+                <span class="status" :class="t.status==='taken' ? 'done' : (t.status==='skipped' ? 'missed' : 'pending')">
+                  {{ t.status==='taken' ? '已喂' : (t.status==='skipped' ? '已跳过' : (t.status==='overdue' ? '已错过' : '待喂')) }}
+                </span>
+              </div>
+              <div class="dose-card-actions" v-if="t.status==='pending' || t.status==='overdue'">
+                <button class="secondary-command" type="button" @click="markSkipped(t)">标记漏服</button>
+                <button class="primary-command" type="button" @click="markTaken(t)"><span v-html="iconSvg('check',16)"></span>记录已喂</button>
+              </div>
             </div>
-            <span class="plan-tag" :class="item.ongoing ? 'ongoing' : 'ended'">{{ item.ongoing ? '进行中' : '已结束' }}</span>
           </div>
-          <div class="plan-progress">
-            <div class="progress-bar"><div class="fill" :style="{width: item.rate+'%'}"></div></div>
-            <div class="plan-progress-text">
-              完药率 {{ item.rate }}% · 已喂{{ item.taken }} · 跳过{{ item.skipped }} · 错过{{ item.missed }}
+          <div v-else class="empty-block small"><p>今天没有用药安排</p></div>
+        </section>
+
+        <!-- 长期用药计划 -->
+        <section class="section-block">
+          <div class="section-header">
+            <h2>长期用药计划</h2>
+            <button class="text-action" type="button" @click="openAddPlan">新增 <span class="ic" v-html="iconSvg('plus',15)"></span></button>
+          </div>
+          <div class="record-list" v-if="planList.length">
+            <div v-for="(item, i) in planList" :key="i" class="plan-item" :class="{inactive: !item.plan.active}">
+              <span class="plan-icon" v-html="iconSvg('pill',17)"></span>
+              <div>
+                <strong>{{ item.plan.drug }}<span v-if="!item.plan.active" class="status missed" style="margin-left:6px">已停用</span></strong>
+                <p>{{ item.plan.dose ? item.plan.dose + ' · ' : '' }}{{ freqText(item.plan) }} · 用药 {{ (item.plan.remind_times||[]).join('、') }}<template v-if="item.plan.remind_before"> · 提前{{ item.plan.remind_before }}分钟提醒</template></p>
+                <p class="plan-sub">{{ item.plan.start_date }} ~ {{ item.plan.end_date || '长期' }} · 完药率 {{ item.rate }}%</p>
+              </div>
+              <div class="plan-actions" v-if="item.plan.active">
+                <button class="icon-button sm" type="button" title="生成提醒日历" @click="generateICS(item)" v-html="iconSvg('calendar',16)"></button>
+                <button class="icon-button sm" type="button" title="编辑" @click="openEditPlan(item.plan)" v-html="iconSvg('edit',16)"></button>
+                <button class="icon-button sm danger" type="button" title="停用" @click="stopPlan(item)" v-html="iconSvg('x',16)"></button>
+              </div>
             </div>
           </div>
-          <div class="flex-row mt-8" style="gap:8px" v-if="item.plan.active">
-            <button class="btn btn-sm btn-ghost" @click="generateICS(item)">📅 生成提醒日历</button>
-            <button class="btn btn-sm btn-danger" @click="stopPlan(item)">停用</button>
-            <button class="btn btn-sm btn-ghost" @click="openEditPlan(item)">编辑</button>
-          </div>
-          <div class="flex-row mt-8" style="gap:8px" v-else>
-            <button class="btn btn-sm btn-ghost" @click="generateICS(item)">📅 生成提醒日历</button>
-            <button class="btn btn-sm btn-ghost" @click="openEditPlan(item)">编辑</button>
-          </div>
-        </div>
+          <div v-else class="empty-block small"><p>还没有用药计划，点右上角 + 新增</p></div>
+        </section>
       </template>
-      <div v-else class="empty-state">
-        <div class="es-icon">💊</div>
-        <div class="es-text">添加猫咪后管理用药</div>
+      <div v-else class="empty-page">
+        <span class="empty-paw-lg" v-html="iconSvg('paw',44)"></span>
+        <p>添加猫咪后管理用药</p>
       </div>
     </div>
 
-    <!-- ==================== 我的 Tab ==================== -->
+    <!-- ==================== 家庭 ==================== -->
     <div v-show="activeTab==='me'">
-      <!-- 猫咪管理 -->
-      <div class="card">
-        <div class="card-title">猫咪管理</div>
-        <div v-if="cats.length===0" class="text-secondary text-sm">暂无猫咪</div>
-        <div v-for="c in cats" :key="c.id" class="record-row">
-          <div class="rec-left" style="align-items:center">
-            <img v-if="c.avatar" class="cat-avatar-lg" :src="c.avatar" alt="">
-            <span class="rec-val"><span v-if="!c.avatar">🐱 </span>{{ c.name }}</span>
-            <span class="rec-date" v-if="c.breed">{{ c.breed }}</span>
-            <span class="rec-note" v-if="c.birthday">生日 {{ c.birthday }}</span>
-          </div>
-          <button class="btn btn-sm btn-ghost" @click="openEditCat(c)">编辑</button>
-        </div>
-        <button class="btn btn-outline btn-block mt-8" @click="openAddCat">+ 添加猫咪</button>
-      </div>
+      <section class="page-heading page-heading-inline">
+        <div><p class="eyebrow">家庭共享</p><h1>一起照顾{{ currentCat ? currentCat.name : '毛孩子' }}</h1></div>
+        <button class="icon-button" type="button" aria-label="加入家庭" @click="openJoinFamily" v-html="iconSvg('share',19)"></button>
+      </section>
 
-      <!-- 家庭同步 -->
-      <div class="card">
-        <div class="card-title">家庭同步</div>
-        <div class="flex-between mb-8">
-          <span class="text-sm">当前模式</span>
-          <span class="badge" :class="isSync ? 'badge-green' : 'badge-gray'">{{ isSync ? '云端同步' : '本地存储' }}</span>
+      <!-- 共享状态 banner -->
+      <section class="sharing-banner">
+        <div class="sharing-shapes" v-html="iconSvg('users',26)"></div>
+        <div v-if="isSync">
+          <span>云端同步已开启</span>
+          <strong>家庭码共享中</strong>
+          <p class="family-code-light">{{ getFamilyId() }}</p>
+          <div class="banner-actions">
+            <button class="mini-command light" type="button" @click="copyFamilyCode">复制家庭码</button>
+            <button class="mini-command light" type="button" @click="openJoinFamily">加入其他家庭</button>
+          </div>
         </div>
-        <template v-if="isSync">
-          <div class="info-note" v-if="getFamilyId()">
-            家庭码：<span class="family-code" style="display:block;margin-top:6px">{{ getFamilyId() }}</span>
+        <div v-else>
+          <span>当前为本地模式</span>
+          <strong>创建家庭，和家人一起照顾</strong>
+          <p>数据仅存在此设备，创建家庭后云端同步共享</p>
+          <div class="banner-actions">
+            <button class="mini-command light" type="button" @click="createFamily">创建家庭</button>
+            <button class="mini-command light" type="button" @click="openJoinFamily">加入家庭</button>
           </div>
-          <div class="flex-row mt-8" style="gap:8px">
-            <button class="btn btn-sm btn-ghost" @click="copyFamilyCode" v-if="getFamilyId()">复制家庭码</button>
-            <button class="btn btn-sm btn-ghost" @click="openJoinFamily">加入其他家庭</button>
+        </div>
+      </section>
+
+      <!-- 猫咪档案 -->
+      <section class="section-block">
+        <div class="section-header">
+          <h2>猫咪档案</h2>
+          <button class="text-action" type="button" @click="openAddCat">添加 <span class="ic" v-html="iconSvg('plus',15)"></span></button>
+        </div>
+        <div class="record-list">
+          <div v-for="c in cats" :key="c.id" class="record-item" @click="openEditCat(c)">
+            <span class="cat-avatar-m"><img v-if="c.avatar" :src="c.avatar" alt=""><span v-else class="cat-avatar-fallback">🐱</span></span>
+            <div>
+              <strong>{{ c.name }}</strong>
+              <p>{{ c.breed || '品种未知' }}<template v-if="catAge(c)"> · {{ catAge(c) }}</template><template v-if="c.birthday"> · 生日 {{ c.birthday }}</template></p>
+            </div>
+            <span class="ic-gray" v-html="iconSvg('edit',16)"></span>
           </div>
-          <div class="info-note mt-8">将家庭码分享给家人，在其设备上"加入家庭"即可同步数据。</div>
-        </template>
-        <template v-else>
-          <div class="info-note">本地模式下数据仅存于此设备。配置 Supabase 后可开启云端同步与多设备共享。</div>
-          <button class="btn btn-primary btn-block mt-8" @click="createFamily">创建家庭（上传本地数据）</button>
-          <button class="btn btn-ghost btn-block mt-8" @click="openJoinFamily">加入家庭</button>
-        </template>
-      </div>
+          <div v-if="!cats.length" class="empty-block small"><p>暂无猫咪档案</p></div>
+        </div>
+      </section>
+
+      <!-- 权限说明 -->
+      <section class="permission-grid">
+        <div><span class="ic-green" v-html="iconSvg('shield',20)"></span><strong>可记录</strong><p>新增健康数据、确认用药</p></div>
+        <div><span class="ic-blue" v-html="iconSvg('heart',20)"></span><strong>仅查看</strong><p>查看趋势和完整历史</p></div>
+      </section>
 
       <!-- 数据备份 -->
-      <div class="card">
-        <div class="card-title">数据备份</div>
-        <button class="btn btn-outline btn-block" @click="exportData">导出 JSON 备份</button>
-        <button class="btn btn-outline btn-block mt-8" @click="openImport">导入 JSON 备份</button>
-      </div>
+      <section class="section-block">
+        <div class="section-header"><h2>数据备份</h2></div>
+        <div class="backup-row">
+          <button class="secondary-command" type="button" @click="exportData"><span v-html="iconSvg('download',16)"></span>导出 JSON</button>
+          <button class="secondary-command" type="button" @click="openImport"><span v-html="iconSvg('upload',16)"></span>导入备份</button>
+        </div>
+      </section>
 
       <!-- 关于 -->
-      <div class="card">
-        <div class="card-title">关于</div>
-        <div class="info-note">
-          猫咪健康 PWA v1.6<br>
-          个人家庭猫咪体重、体温、用药日常管理工具。<br>
-          数据存储于本地或自建 Supabase，不上传第三方。
-        </div>
-      </div>
+      <section class="section-block">
+        <div class="section-header"><h2>关于</h2></div>
+        <div class="about-note">猫咪健康 PWA v2.0<br>数据存储于你的设备与家庭云端，不上传任何第三方。</div>
+      </section>
     </div>
+  </main>
 
-  </div><!-- /content -->
-
-  <!-- ========== 底部 Tab 栏 ========== -->
-  <nav class="tab-bar">
-    <button class="tab-item" :class="{active: activeTab==='today'}" @click="switchTab('today')">
-      <span class="tab-icon">📋</span>今天
-    </button>
-    <button class="tab-item" :class="{active: activeTab==='trend'}" @click="switchTab('trend')">
-      <span class="tab-icon">📊</span>趋势
-    </button>
-    <button class="tab-item" :class="{active: activeTab==='meds'}" @click="switchTab('meds')">
-      <span class="tab-icon">💊</span>用药
-    </button>
-    <button class="tab-item" :class="{active: activeTab==='me'}" @click="switchTab('me')">
-      <span class="tab-icon">⚙️</span>我的
-    </button>
+  <!-- ========== 底部导航（5 栏 + 中间 FAB） ========== -->
+  <nav class="bottom-nav" aria-label="主导航">
+    <button type="button" :class="{'nav-active': activeTab==='today'}" @click="switchTab('today')"><span v-html="iconSvg('home',20)"></span><span>首页</span></button>
+    <button type="button" :class="{'nav-active': activeTab==='trend'}" @click="switchTab('trend')"><span v-html="iconSvg('chart',20)"></span><span>趋势</span></button>
+    <button class="record-fab" type="button" aria-label="新增健康记录" @click="openQuickRecord"><span v-html="iconSvg('plus',25)"></span></button>
+    <button type="button" :class="{'nav-active': activeTab==='meds'}" @click="switchTab('meds')"><span v-html="iconSvg('pill',20)"></span><span>用药</span></button>
+    <button type="button" :class="{'nav-active': activeTab==='me'}" @click="switchTab('me')"><span v-html="iconSvg('users',20)"></span><span>家庭</span></button>
   </nav>
 
-  <!-- ========== Toast ========== -->
-  <div class="toast" v-if="toastMsg">{{ toastMsg }}</div>
+  <!-- ==================== 弹层：快捷记录（FAB） ==================== -->
+  <div class="modal-overlay" v-if="modal.quickRecord" @click.self="modal.quickRecord=false">
+    <div class="modal-sheet">
+      <div class="sheet-grabber"></div>
+      <div class="modal-header">
+        <div><h2 class="modal-title">新增健康记录</h2><p class="modal-sub">保存后会同步到健康趋势</p></div>
+        <button class="modal-close" @click="modal.quickRecord=false">&times;</button>
+      </div>
+      <div class="choice-grid">
+        <button class="choice-card" type="button" @click="pickRecordType('weight')">
+          <span class="metric-glyph weight" v-html="iconSvg('weight',20)"></span>记体重
+        </button>
+        <button class="choice-card" type="button" @click="pickRecordType('temp')">
+          <span class="metric-glyph temperature" v-html="iconSvg('thermometer',20)"></span>记体温
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- ==================== 弹层：添加/编辑猫咪 ==================== -->
   <div class="modal-overlay" v-if="modal.addCat || modal.editCat" @click.self="modal.addCat=false; modal.editCat=false">
     <div class="modal-sheet">
+      <div class="sheet-grabber"></div>
       <div class="modal-header">
-        <span class="modal-title">{{ modal.editCat ? '编辑猫咪' : '添加猫咪' }}</span>
+        <div><h2 class="modal-title">{{ modal.editCat ? '编辑猫咪' : '添加猫咪' }}</h2><p class="modal-sub">照片会随家庭同步给家人</p></div>
         <button class="modal-close" @click="modal.addCat=false; modal.editCat=false">&times;</button>
       </div>
       <div class="field" style="text-align:center">
@@ -309,7 +405,7 @@
             <input type="file" accept="image/*" @change="onAvatarPick" style="display:none">
           </label>
           <div class="text-secondary text-sm mt-8">点击圆形区域选择照片（自动裁剪压缩）</div>
-          <button v-if="catForm.avatar" class="btn btn-sm btn-ghost mt-8" style="color:#ff3b30" @click="removeAvatar">移除照片</button>
+          <button v-if="catForm.avatar" class="btn btn-sm btn-ghost mt-8" style="color:#a9534c" @click="removeAvatar">移除照片</button>
         </div>
       </div>
       <div class="field">
@@ -339,7 +435,7 @@
         <input class="input" type="date" v-model="catForm.birthday" />
       </div>
       <div class="modal-footer">
-        <button class="btn btn-block btn-primary" @click="saveCat(modal.editCat)">保存</button>
+        <button class="primary-command full" type="button" @click="saveCat(modal.editCat)"><span v-html="iconSvg('check',17)"></span>保存</button>
       </div>
     </div>
   </div>
@@ -347,13 +443,14 @@
   <!-- ==================== 弹层：记体重 ==================== -->
   <div class="modal-overlay" v-if="modal.addWeight" @click.self="modal.addWeight=false">
     <div class="modal-sheet">
+      <div class="sheet-grabber"></div>
       <div class="modal-header">
-        <span class="modal-title">{{ weightForm.id ? '编辑体重' : '记录体重' }}</span>
+        <div><h2 class="modal-title">{{ weightForm.id ? '编辑体重' : '记录体重' }}</h2><p class="modal-sub">同一天重复记录会自动更新</p></div>
         <button class="modal-close" @click="modal.addWeight=false">&times;</button>
       </div>
       <div class="field">
         <label>体重 (kg) *</label>
-        <input class="input" :class="{'input-err': errors.kg}" v-model="weightForm.kg" type="number" step="0.01" inputmode="decimal" placeholder="如 4.5" style="font-size:24px;text-align:center;padding:16px" />
+        <input class="input big-input" :class="{'input-err': errors.kg}" v-model="weightForm.kg" type="number" step="0.01" inputmode="decimal" placeholder="如 4.5" />
         <div class="err-text" v-if="errors.kg">{{ errors.kg }}</div>
         <div class="text-secondary text-sm text-center mt-8">范围 0.1 - 20 kg</div>
       </div>
@@ -366,8 +463,8 @@
         <input class="input" v-model="weightForm.note" placeholder="如：饭后称重" />
       </div>
       <div class="modal-footer">
-        <button class="btn btn-block btn-primary" @click="saveWeight">保存</button>
-        <button class="btn btn-block btn-ghost" style="color:#ff3b30" v-if="weightForm.id" @click="deleteWeightRecord">删除这条记录</button>
+        <button class="primary-command full" type="button" @click="saveWeight"><span v-html="iconSvg('check',17)"></span>保存</button>
+        <button class="btn btn-block btn-ghost danger-text" v-if="weightForm.id" @click="deleteWeightRecord">删除这条记录</button>
       </div>
     </div>
   </div>
@@ -375,13 +472,14 @@
   <!-- ==================== 弹层：记体温 ==================== -->
   <div class="modal-overlay" v-if="modal.addTemp" @click.self="modal.addTemp=false">
     <div class="modal-sheet">
+      <div class="sheet-grabber"></div>
       <div class="modal-header">
-        <span class="modal-title">{{ tempForm.id ? '编辑体温' : '记录体温' }}</span>
+        <div><h2 class="modal-title">{{ tempForm.id ? '编辑体温' : '记录体温' }}</h2><p class="modal-sub">同一天重复记录会自动更新</p></div>
         <button class="modal-close" @click="modal.addTemp=false">&times;</button>
       </div>
       <div class="field">
         <label>体温 (°C) *</label>
-        <input class="input" :class="{'input-err': errors.celsius}" v-model="tempForm.celsius" type="number" step="0.1" inputmode="decimal" placeholder="如 38.5" style="font-size:24px;text-align:center;padding:16px" />
+        <input class="input big-input" :class="{'input-err': errors.celsius}" v-model="tempForm.celsius" type="number" step="0.1" inputmode="decimal" placeholder="如 38.5" />
         <div class="err-text" v-if="errors.celsius">{{ errors.celsius }}</div>
         <div class="text-secondary text-sm text-center mt-8">范围 35 - 42 °C · 正常 38.0-39.2</div>
       </div>
@@ -394,8 +492,8 @@
         <input class="input" v-model="tempForm.note" placeholder="如：肛温" />
       </div>
       <div class="modal-footer">
-        <button class="btn btn-block btn-primary" @click="saveTemp">保存</button>
-        <button class="btn btn-block btn-ghost" style="color:#ff3b30" v-if="tempForm.id" @click="deleteTempRecord">删除这条记录</button>
+        <button class="primary-command full" type="button" @click="saveTemp"><span v-html="iconSvg('check',17)"></span>保存</button>
+        <button class="btn btn-block btn-ghost danger-text" v-if="tempForm.id" @click="deleteTempRecord">删除这条记录</button>
       </div>
     </div>
   </div>
@@ -403,8 +501,9 @@
   <!-- ==================== 弹层：新增/编辑用药计划 ==================== -->
   <div class="modal-overlay" v-if="modal.addPlan || modal.editPlan" @click.self="modal.addPlan=false; modal.editPlan=false">
     <div class="modal-sheet">
+      <div class="sheet-grabber"></div>
       <div class="modal-header">
-        <span class="modal-title">{{ modal.editPlan ? '编辑计划' : '新增用药计划' }}</span>
+        <div><h2 class="modal-title">{{ modal.editPlan ? '编辑计划' : '新增用药计划' }}</h2><p class="modal-sub">按频次自动生成每日待办</p></div>
         <button class="modal-close" @click="modal.addPlan=false; modal.editPlan=false">&times;</button>
       </div>
       <div class="field">
@@ -433,13 +532,11 @@
           <button type="button" :class="{active: planForm.freq_type==='weekly'}" @click="planForm.freq_type='weekly'">每周固定</button>
           <button type="button" :class="{active: planForm.freq_type==='interval'}" @click="planForm.freq_type='interval'">每N天</button>
         </div>
-        <!-- 每周固定：点选星期几 -->
         <div v-if="planForm.freq_type==='weekly'" class="weekday-row">
           <button type="button" v-for="d in weekdayOptions" :key="d.value" class="weekday-chip"
                   :class="{active: planForm.weekdays.includes(d.value)}" @click="toggleWeekday(d.value)">{{ d.label }}</button>
         </div>
         <div class="err-text" v-if="errors.weekdays">{{ errors.weekdays }}</div>
-        <!-- 每N天：间隔天数 -->
         <div v-if="planForm.freq_type==='interval'" class="flex-row mt-8" style="align-items:center;gap:8px">
           <span>每</span>
           <input class="input" type="number" min="2" max="30" v-model="planForm.interval_days" style="width:80px" />
@@ -483,7 +580,7 @@
         <textarea class="textarea" v-model="planForm.note" placeholder="如：饭后服用"></textarea>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-block btn-primary" @click="savePlan(modal.editPlan)">保存计划</button>
+        <button class="primary-command full" type="button" @click="savePlan(modal.editPlan)"><span v-html="iconSvg('check',17)"></span>保存计划</button>
       </div>
     </div>
   </div>
@@ -491,8 +588,9 @@
   <!-- ==================== 弹层：加入家庭 ==================== -->
   <div class="modal-overlay" v-if="modal.joinFamily" @click.self="modal.joinFamily=false">
     <div class="modal-sheet">
+      <div class="sheet-grabber"></div>
       <div class="modal-header">
-        <span class="modal-title">加入家庭</span>
+        <div><h2 class="modal-title">加入家庭</h2><p class="modal-sub">输入家人分享的家庭码即可同步数据</p></div>
         <button class="modal-close" @click="modal.joinFamily=false">&times;</button>
       </div>
       <div class="info-note mb-16">输入家人分享的家庭码（UUID 格式），即可同步该家庭数据。加入后本地数据将被替换。</div>
@@ -501,7 +599,7 @@
         <input class="input" v-model="joinCode" placeholder="粘贴家庭码" style="font-family:'SF Mono',monospace;font-size:13px" />
       </div>
       <div class="modal-footer">
-        <button class="btn btn-block btn-primary" @click="doJoinFamily">加入</button>
+        <button class="primary-command full" type="button" @click="doJoinFamily">加入</button>
       </div>
     </div>
   </div>
@@ -509,11 +607,12 @@
   <!-- ==================== 弹层：导入数据 ==================== -->
   <div class="modal-overlay" v-if="modal.importData" @click.self="modal.importData=false">
     <div class="modal-sheet">
+      <div class="sheet-grabber"></div>
       <div class="modal-header">
-        <span class="modal-title">导入 JSON 备份</span>
+        <div><h2 class="modal-title">导入 JSON 备份</h2><p class="modal-sub">导入将覆盖当前同类型数据</p></div>
         <button class="modal-close" @click="modal.importData=false">&times;</button>
       </div>
-      <div class="info-note mb-16">选择之前导出的 .json 备份文件，或直接粘贴内容。导入将覆盖当前同类型数据。</div>
+      <div class="info-note mb-16">选择之前导出的 .json 备份文件，或直接粘贴内容。</div>
       <div class="field">
         <label>选择文件</label>
         <input type="file" accept=".json,application/json" @change="onImportFile" style="width:100%" />
@@ -523,10 +622,15 @@
         <textarea class="textarea" v-model="importText" style="min-height:100px;font-size:12px"></textarea>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-block btn-primary" @click="doImport">导入</button>
+        <button class="primary-command full" type="button" @click="doImport">导入</button>
       </div>
     </div>
   </div>
+
+</div><!-- /.app-shell -->
+
+<!-- Toast -->
+<div v-if="toastMsg" class="toast" role="status"><span v-html="iconSvg('check',16)"></span>{{ toastMsg }}</div>
 
 </div><!-- /#app -->
 
@@ -535,8 +639,8 @@
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 应用脚本 -->
-<script src="js/config.js?v=1.6"></script>
-<script src="js/store.js?v=1.6"></script>
-<script src="js/app.js?v=1.6"></script>
+<script src="js/config.js?v=2.0"></script>
+<script src="js/store.js?v=2.0"></script>
+<script src="js/app.js?v=2.0"></script>
 </body>
 </html>
