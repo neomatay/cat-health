@@ -89,6 +89,54 @@
     lsSaveArr(table, arr);
   }
 
+  // 按 (cat_id, date) 去重 upsert：同一天重复记录时更新原记录而非插入新行
+  function upsertByDate(table, rec) {
+    var fid = getFamilyId();
+    if (isSyncMode()) {
+      return supa.from(table).select('id').eq('family_id', fid).eq('cat_id', rec.cat_id).eq('date', rec.date)
+        .then(function (found) {
+          if (found.error) throw found.error;
+          var exist = (found.data || [])[0];
+          if (exist) {
+            return supa.from(table).update(rec).eq('id', exist.id).select().then(function (res) {
+              if (res.error) throw res.error;
+              return (res.data && res.data[0]) || Object.assign({ id: exist.id }, rec);
+            });
+          }
+          var r = withFid(Object.assign({ id: uuid(), created_at: new Date().toISOString() }, rec));
+          return supa.from(table).insert(r).select().then(function (res) {
+            if (res.error) throw res.error; return (res.data && res.data[0]) || r;
+          });
+        });
+    }
+    var arr = lsGetArr(table);
+    for (var i = 0; i < arr.length; i++) {
+      if (arr[i].cat_id === rec.cat_id && arr[i].date === rec.date) {
+        arr[i] = Object.assign({}, arr[i], rec);
+        lsSaveArr(table, arr);
+        return Promise.resolve(arr[i]);
+      }
+    }
+    var r2 = withFid(Object.assign({ id: uuid(), created_at: new Date().toISOString() }, rec));
+    localInsert(table, r2); return Promise.resolve(r2);
+  }
+
+  // 通用更新/删除（本地/云端透明）
+  function updateById(table, id, patch) {
+    if (isSyncMode()) {
+      return supa.from(table).update(patch).eq('id', id).select().then(function (res) {
+        if (res.error) throw res.error; return (res.data && res.data[0]) || patch;
+      });
+    }
+    localUpdate(table, id, patch); return Promise.resolve(patch);
+  }
+  function deleteById(table, id) {
+    if (isSyncMode()) {
+      return supa.from(table).delete().eq('id', id).then(function (res) { if (res.error) throw res.error; });
+    }
+    localDelete(table, id); return Promise.resolve();
+  }
+
   // ============================================================
   // 统一 API（全部返回 Promise）
   // ============================================================
@@ -146,15 +194,9 @@
       return Promise.resolve(localList('weights', function (w) { return w.cat_id === catId; })
         .sort(function (a, b) { return (a.date || '').localeCompare(b.date || ''); }));
     },
-    addWeight: function (rec) {
-      var r = withFid(Object.assign({ id: uuid(), created_at: new Date().toISOString() }, rec));
-      if (isSyncMode()) {
-        return supa.from('weights').insert(r).select().then(function (res) {
-          if (res.error) throw res.error; return (res.data && res.data[0]) || r;
-        });
-      }
-      localInsert('weights', r); return Promise.resolve(r);
-    },
+    addWeight: function (rec) { return upsertByDate('weights', rec); },
+    updateWeight: function (id, patch) { return updateById('weights', id, patch); },
+    deleteWeight: function (id) { return deleteById('weights', id); },
 
     // ---- 体温 ----
     getTemps: function (catId) {
@@ -166,15 +208,9 @@
       return Promise.resolve(localList('temps', function (t) { return t.cat_id === catId; })
         .sort(function (a, b) { return (a.date || '').localeCompare(b.date || ''); }));
     },
-    addTemp: function (rec) {
-      var r = withFid(Object.assign({ id: uuid(), created_at: new Date().toISOString() }, rec));
-      if (isSyncMode()) {
-        return supa.from('temps').insert(r).select().then(function (res) {
-          if (res.error) throw res.error; return (res.data && res.data[0]) || r;
-        });
-      }
-      localInsert('temps', r); return Promise.resolve(r);
-    },
+    addTemp: function (rec) { return upsertByDate('temps', rec); },
+    updateTemp: function (id, patch) { return updateById('temps', id, patch); },
+    deleteTemp: function (id) { return deleteById('temps', id); },
 
     // ---- 用药计划 ----
     getMedPlans: function (catId) {

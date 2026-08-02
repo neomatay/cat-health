@@ -51,8 +51,8 @@ createApp({
     });
     var catForm = reactive({ name: '', breed: '', birthday: '' });
     var editingCatId = ref(null);
-    var weightForm = reactive({ cat_id: null, date: todayStr(), kg: '', note: '' });
-    var tempForm = reactive({ cat_id: null, date: todayStr(), celsius: '', note: '' });
+    var weightForm = reactive({ id: null, cat_id: null, date: todayStr(), kg: '', note: '' });
+    var tempForm = reactive({ id: null, cat_id: null, date: todayStr(), celsius: '', note: '' });
     var planForm = reactive({
       cat_id: null, drug: '', dose: '', remind_times: ['08:00'],
       start_date: todayStr(), end_date: '', is_long_term: true, note: ''
@@ -102,11 +102,11 @@ createApp({
       return todayTasks.value.filter(function (t) { return t.status === 'pending' || t.status === 'overdue'; }).length;
     });
 
-    // 最近 5 条记录（体重+体温合并）
+    // 最近 5 条记录（体重+体温合并，带原始字段供点击编辑）
     var recentRecords = computed(function () {
       var arr = [];
-      weights.value.forEach(function (w) { arr.push({ type: 'weight', date: w.date, val: w.kg + ' kg', note: w.note }); });
-      temps.value.forEach(function (t) { arr.push({ type: 'temp', date: t.date, val: t.celsius + ' °C', note: t.note }); });
+      weights.value.forEach(function (w) { arr.push({ type: 'weight', id: w.id, cat_id: w.cat_id, date: w.date, kg: w.kg, val: w.kg + ' kg', note: w.note }); });
+      temps.value.forEach(function (t) { arr.push({ type: 'temp', id: t.id, cat_id: t.cat_id, date: t.date, celsius: t.celsius, val: t.celsius + ' °C', note: t.note }); });
       arr.sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); });
       return arr.slice(0, 5);
     });
@@ -207,6 +207,7 @@ createApp({
     // ========== 快速记录：体重/体温 ==========
     function openAddWeight() {
       if (!currentCatId.value) return;
+      weightForm.id = null;
       weightForm.cat_id = currentCatId.value;
       weightForm.date = todayStr();
       weightForm.kg = ''; weightForm.note = '';
@@ -215,6 +216,7 @@ createApp({
     }
     function openAddTemp() {
       if (!currentCatId.value) return;
+      tempForm.id = null;
       tempForm.cat_id = currentCatId.value;
       tempForm.date = todayStr();
       tempForm.celsius = ''; tempForm.note = '';
@@ -222,14 +224,53 @@ createApp({
       modal.addTemp = true;
     }
 
+    // 点击最近记录 → 编辑该条（可改数值/日期/备注，可删除）
+    function openEditRecord(r) {
+      if (r.type === 'weight') {
+        weightForm.id = r.id; weightForm.cat_id = r.cat_id; weightForm.date = r.date;
+        weightForm.kg = String(r.kg); weightForm.note = r.note || '';
+        errors.kg = ''; modal.addWeight = true;
+      } else {
+        tempForm.id = r.id; tempForm.cat_id = r.cat_id; tempForm.date = r.date;
+        tempForm.celsius = String(r.celsius); tempForm.note = r.note || '';
+        errors.celsius = ''; modal.addTemp = true;
+      }
+    }
+
+    async function deleteWeightRecord() {
+      if (!weightForm.id) return;
+      if (!confirm('确定删除这条体重记录吗？')) return;
+      try {
+        await CatStore.deleteWeight(weightForm.id);
+        weights.value = await CatStore.getWeights(currentCatId.value);
+        modal.addWeight = false; showToast('已删除');
+        if (activeTab.value === 'trend' && trendMetric.value === 'weight') renderChart();
+      } catch (e) { console.error(e); showToast('删除失败'); }
+    }
+    async function deleteTempRecord() {
+      if (!tempForm.id) return;
+      if (!confirm('确定删除这条体温记录吗？')) return;
+      try {
+        await CatStore.deleteTemp(tempForm.id);
+        temps.value = await CatStore.getTemps(currentCatId.value);
+        modal.addTemp = false; showToast('已删除');
+        if (activeTab.value === 'trend' && trendMetric.value === 'temp') renderChart();
+      } catch (e) { console.error(e); showToast('删除失败'); }
+    }
+
     async function saveWeight() {
       var kg = parseFloat(weightForm.kg);
       if (isNaN(kg) || kg < 0.1 || kg > 20) { errors.kg = '请输入 0.1-20 kg'; return; }
       try {
-        await CatStore.addWeight({ cat_id: weightForm.cat_id, date: weightForm.date, kg: kg, note: weightForm.note });
+        if (weightForm.id) {
+          await CatStore.updateWeight(weightForm.id, { date: weightForm.date, kg: kg, note: weightForm.note });
+          showToast('体重已更新');
+        } else {
+          await CatStore.addWeight({ cat_id: weightForm.cat_id, date: weightForm.date, kg: kg, note: weightForm.note });
+          showToast('体重已记录');
+        }
         if (weightForm.cat_id === currentCatId.value) weights.value = await CatStore.getWeights(currentCatId.value);
         modal.addWeight = false;
-        showToast('体重已记录');
         if (activeTab.value === 'trend' && trendMetric.value === 'weight') renderChart();
       } catch (e) { console.error(e); showToast('保存失败'); }
     }
@@ -238,10 +279,15 @@ createApp({
       var c = parseFloat(tempForm.celsius);
       if (isNaN(c) || c < 35 || c > 42) { errors.celsius = '请输入 35-42 °C'; return; }
       try {
-        await CatStore.addTemp({ cat_id: tempForm.cat_id, date: tempForm.date, celsius: c, note: tempForm.note });
+        if (tempForm.id) {
+          await CatStore.updateTemp(tempForm.id, { date: tempForm.date, celsius: c, note: tempForm.note });
+          showToast('体温已更新');
+        } else {
+          await CatStore.addTemp({ cat_id: tempForm.cat_id, date: tempForm.date, celsius: c, note: tempForm.note });
+          showToast('体温已记录');
+        }
         if (tempForm.cat_id === currentCatId.value) temps.value = await CatStore.getTemps(currentCatId.value);
         modal.addTemp = false;
-        showToast('体温已记录');
         if (activeTab.value === 'trend' && trendMetric.value === 'temp') renderChart();
       } catch (e) { console.error(e); showToast('保存失败'); }
     }
@@ -376,7 +422,10 @@ createApp({
         var cutoff = new Date(now.getTime() - days * 86400000);
         arr = arr.filter(function (r) { return new Date(r.date) >= cutoff; });
       }
-      return arr.slice();
+      // 按日期去重：同一天多条只保留最新一条（后者覆盖前者），兼容历史重复数据
+      var byDate = {};
+      arr.forEach(function (r) { byDate[r.date] = r; });
+      return Object.keys(byDate).sort().map(function (d) { return byDate[d]; });
     }
 
     function renderChart() {
@@ -400,7 +449,14 @@ createApp({
         grid: { left: 45, right: 16, top: 20, bottom: 30 },
         tooltip: { trigger: 'axis', formatter: function (p) { return p[0].name + '<br/>' + p[0].value + ' ' + unit; } },
         xAxis: { type: 'category', data: dates, axisLabel: { fontSize: 10, formatter: function (v) { var p = v.split('-'); return p[1] + '/' + p[2]; } } },
-        yAxis: { type: 'value', scale: true, axisLabel: { fontSize: 11 } },
+        yAxis: {
+          type: 'value', scale: true, splitNumber: 4,
+          axisLabel: { fontSize: 11 },
+          // 纵轴按数据范围留足余量：体重 ±0.3kg、体温 ±0.5°C，
+          // 0.1kg 级的日常波动在图上只是小起伏，不会显得"剧烈波动"
+          min: function (v) { return isWeight ? Math.max(0, Math.floor((v.min - 0.3) * 10) / 10) : Math.floor((v.min - 0.5) * 10) / 10; },
+          max: function (v) { return isWeight ? Math.ceil((v.max + 0.3) * 10) / 10 : Math.ceil((v.max + 0.5) * 10) / 10; }
+        },
         series: [series]
       };
       // 体温正常区间
@@ -540,7 +596,7 @@ createApp({
       isSync, getFamilyId,
       switchTab, switchCat, showToast,
       markTaken, markSkipped,
-      openAddWeight, openAddTemp, saveWeight, saveTemp,
+      openAddWeight, openAddTemp, saveWeight, saveTemp, openEditRecord, deleteWeightRecord, deleteTempRecord,
       openAddCat, openEditCat, saveCat,
       openAddPlan, openEditPlan, savePlan, addPlanTime, removePlanTime, stopPlan,
       generateICS,

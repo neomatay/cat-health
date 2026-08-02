@@ -87,8 +87,8 @@
 
         <!-- 最近记录 -->
         <div class="card" v-if="recentRecords.length">
-          <div class="card-title">最近记录</div>
-          <div v-for="(r, i) in recentRecords" :key="i" class="record-row">
+          <div class="card-title">最近记录 <span class="text-secondary text-sm" style="font-weight:normal">（点击可编辑）</span></div>
+          <div v-for="(r, i) in recentRecords" :key="i" class="record-row" @click="openEditRecord(r)" style="cursor:pointer">
             <div class="rec-left">
               <span class="rec-val">{{ r.val }}</span>
               <span class="rec-date">{{ fmtDate(r.date) }}</span>
@@ -97,6 +97,7 @@
             <span class="badge" :class="r.type==='weight' ? 'badge-orange' : 'badge-gray'">
               {{ r.type==='weight' ? '体重' : '体温' }}
             </span>
+            <span class="text-secondary">›</span>
           </div>
         </div>
       </template>
@@ -334,7 +335,7 @@
   <div class="modal-overlay" v-if="modal.addWeight" @click.self="modal.addWeight=false">
     <div class="modal-sheet">
       <div class="modal-header">
-        <span class="modal-title">记录体重</span>
+        <span class="modal-title">{{ weightForm.id ? '编辑体重' : '记录体重' }}</span>
         <button class="modal-close" @click="modal.addWeight=false">&times;</button>
       </div>
       <div class="field">
@@ -353,6 +354,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-block btn-primary" @click="saveWeight">保存</button>
+        <button class="btn btn-block btn-ghost" style="color:#ff3b30" v-if="weightForm.id" @click="deleteWeightRecord">删除这条记录</button>
       </div>
     </div>
   </div>
@@ -361,7 +363,7 @@
   <div class="modal-overlay" v-if="modal.addTemp" @click.self="modal.addTemp=false">
     <div class="modal-sheet">
       <div class="modal-header">
-        <span class="modal-title">记录体温</span>
+        <span class="modal-title">{{ tempForm.id ? '编辑体温' : '记录体温' }}</span>
         <button class="modal-close" @click="modal.addTemp=false">&times;</button>
       </div>
       <div class="field">
@@ -380,6 +382,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-block btn-primary" @click="saveTemp">保存</button>
+        <button class="btn btn-block btn-ghost" style="color:#ff3b30" v-if="tempForm.id" @click="deleteTempRecord">删除这条记录</button>
       </div>
     </div>
   </div>
