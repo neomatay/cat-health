@@ -1,176 +1,103 @@
 import Foundation
-#if canImport(Supabase)
-import Supabase
-#endif
 
-/// Supabase 数据访问层（同步模式专用）。
-/// 直接读写云端，不做离线合并 —— 见 SETUP.md「已知限制」。
-///
-/// 表结构（与网页版共用）：
-///   cats(id, family_id, name, breed, birthday)
-///   weights(id, family_id, cat_id, date, kg, note)
-///   temps(id, family_id, cat_id, date, celsius, note)
-///   med_plans(id, family_id, cat_id, drug, dose, remind_times text[], start_date, end_date, active, note)
-///   med_logs(id, family_id, plan_id, cat_id, date, scheduled_time, status, taken_at, note)
-///
-/// 注意：未配置 Supabase 时本类不会被调用；
-/// 同时用 #if canImport 包裹，万一 SPM 依赖未添加也能编过（同步功能不可用）。
-enum SupabaseServiceError: LocalizedError {
-    case sdkNotLinked
-    case network(String)
+// ============================================================
+// Supabase REST 客户端（零依赖，直接 URLSession 调 PostgREST）
+// ============================================================
 
+enum SupaError: Error, LocalizedError {
+    case badURL
+    case notConfigured
+    case http(Int, String)
     var errorDescription: String? {
         switch self {
-        case .sdkNotLinked: return "未添加 supabase-swift 依赖，请按 SETUP.md 用 SPM 添加"
-        case .network(let msg): return msg
+        case .badURL: return "地址错误"
+        case .notConfigured: return "未配置 Supabase"
+        case .http(let code, let body): return "HTTP \(code): \(body)"
         }
     }
 }
 
-#if canImport(Supabase)
-final class SupabaseService {
-    static let shared = SupabaseService()
+enum Supa {
+    private static var base: String { Config.supabaseURL + "/rest/v1" }
 
-    private let client: SupabaseClient?
+    private static func request(path: String, method: String = "GET",
+                                query: [URLQueryItem] = [], body: Data? = nil,
+                                prefer: String? = nil) async throws -> Data {
+        guard Config.isConfigured else { throw SupaError.notConfigured }
+        guard var comp = URLComponents(string: base + path) else { throw SupaError.badURL }
+        if !query.isEmpty { comp.queryItems = query }
+        guard let url = comp.url else { throw SupaError.badURL }
 
-    private init() {
-        if Config.isSupabaseConfigured, let url = URL(string: Config.supabaseURL) {
-            client = SupabaseClient(supabaseURL: url, supabaseKey: Config.supabaseAnonKey)
+        var req = URLRequest(url: url)
+        req.httpMethod = method
+        req.setValue(Config.supabaseAnonKey, forHTTPHeaderField: "apikey")
+        req.setValue("Bearer \(Config.supabaseAnonKey)", forHTTPHeaderField: "Authorization")
+        if let prefer = prefer { req.setValue(prefer, forHTTPHeaderField: "Prefer") }
+        if let body = body {
+            req.httpBody = body
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        if let http = resp as? HTTPURLResponse, http.statusCode >= 400 {
+            throw SupaError.http(http.statusCode, String(data: data, encoding: .utf8) ?? "")
+        }
+        return data
+    }
+
+    static func list<T: Decodable>(_ type: T.Type, table: String, query: [URLQueryItem]) async throws -> [T] {
+        let data = try await request(path: "/\(table)", query: query)
+        return try JSONDecoder().decode([T].self, from: data)
+    }
+
+    static func insert(table: String, payload: [String: Any]) async throws {
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        _ = try await request(path: "/\(table)", method: "POST", body: body, prefer: "return=minimal")
+    }
+
+    static func update(table: String, id: String, payload: [String: Any]) async throws {
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        _ = try await request(path: "/\(table)", method: "PATCH",
+                              query: [URLQueryItem(name: "id", value: "eq.\(id)")],
+                              body: body, prefer: "return=minimal")
+    }
+
+    static func remove(table: String, query: [URLQueryItem]) async throws {
+        _ = try await request(path: "/\(table)", method: "DELETE", query: query)
+    }
+}
+
+/// 通知快捷操作（已喂/跳过）直接写打卡记录，无需经过界面状态
+func writeDoseLogFromNotification(planId: String, catId: String, time: String, status: String) async {
+    guard let fid = Config.familyId else { return }
+    let today = DateKit.today()
+    do {
+        // 查是否已有当天该时间点的记录
+        let existing = try await Supa.list(MedLog.self, table: "med_logs", query: [
+            URLQueryItem(name: "select", value: "id"),
+            URLQueryItem(name: "family_id", value: "eq.\(fid)"),
+            URLQueryItem(name: "plan_id", value: "eq.\(planId)"),
+            URLQueryItem(name: "date", value: "eq.\(today)"),
+            URLQueryItem(name: "scheduled_time", value: "eq.\(time)")
+        ])
+        if let first = existing.first {
+            var patch: [String: Any] = ["status": status]
+            if status == "taken" { patch["taken_at"] = DateKit.nowISO() }
+            try await Supa.update(table: "med_logs", id: first.id, payload: patch)
         } else {
-            client = nil
+            var payload: [String: Any] = [
+                "id": UUID().uuidString,
+                "family_id": fid,
+                "plan_id": planId,
+                "cat_id": catId,
+                "date": today,
+                "scheduled_time": time,
+                "status": status
+            ]
+            if status == "taken" { payload["taken_at"] = DateKit.nowISO() }
+            try await Supa.insert(table: "med_logs", payload: payload)
         }
-    }
-
-    private func requireClient() throws -> SupabaseClient {
-        guard let client else { throw SupabaseServiceError.sdkNotLinked }
-        return client
-    }
-
-    // MARK: - 拉取整个家庭的全部数据
-
-    struct FamilySnapshot {
-        var cats: [Cat]
-        var weights: [WeightRecord]
-        var temps: [TempRecord]
-        var plans: [MedPlan]
-        var logs: [MedLog]
-    }
-
-    func fetchAll(familyId: UUID) async throws -> FamilySnapshot {
-        let c = try requireClient()
-        let fid = familyId.uuidString
-
-        async let catsReq: [Cat] = c.from("cats").select().eq("family_id", value: fid).order("name").execute().value
-        async let weightsReq: [WeightRecord] = c.from("weights").select().eq("family_id", value: fid).order("date", ascending: false).execute().value
-        async let tempsReq: [TempRecord] = c.from("temps").select().eq("family_id", value: fid).order("date", ascending: false).execute().value
-        async let plansReq: [MedPlan] = c.from("med_plans").select().eq("family_id", value: fid).execute().value
-        async let logsReq: [MedLog] = c.from("med_logs").select().eq("family_id", value: fid).order("date", ascending: false).execute().value
-
-        return try await FamilySnapshot(cats: catsReq, weights: weightsReq, temps: tempsReq, plans: plansReq, logs: logsReq)
-    }
-
-    /// 判断某个家庭码在云端是否已有数据（加入家庭前校验用）
-    func familyExists(familyId: UUID) async throws -> Bool {
-        let c = try requireClient()
-        let cats: [Cat] = try await c.from("cats").select().eq("family_id", value: familyId.uuidString).limit(1).execute().value
-        return !cats.isEmpty
-    }
-
-    // MARK: - 猫
-
-    func upsertCat(_ cat: Cat) async throws {
-        let c = try requireClient()
-        try await c.from("cats").upsert(cat).execute()
-    }
-
-    func deleteCat(id: UUID) async throws {
-        let c = try requireClient()
-        try await c.from("cats").delete().eq("id", value: id.uuidString).execute()
-    }
-
-    // MARK: - 体重
-
-    func insertWeight(_ r: WeightRecord) async throws {
-        let c = try requireClient()
-        try await c.from("weights").insert(r).execute()
-    }
-
-    func deleteWeight(id: UUID) async throws {
-        let c = try requireClient()
-        try await c.from("weights").delete().eq("id", value: id.uuidString).execute()
-    }
-
-    // MARK: - 体温
-
-    func insertTemp(_ r: TempRecord) async throws {
-        let c = try requireClient()
-        try await c.from("temps").insert(r).execute()
-    }
-
-    func deleteTemp(id: UUID) async throws {
-        let c = try requireClient()
-        try await c.from("temps").delete().eq("id", value: id.uuidString).execute()
-    }
-
-    // MARK: - 用药计划
-
-    func upsertPlan(_ p: MedPlan) async throws {
-        let c = try requireClient()
-        try await c.from("med_plans").upsert(p).execute()
-    }
-
-    func deletePlan(id: UUID) async throws {
-        let c = try requireClient()
-        try await c.from("med_plans").delete().eq("id", value: id.uuidString).execute()
-    }
-
-    // MARK: - 用药记录
-
-    func insertLog(_ l: MedLog) async throws {
-        let c = try requireClient()
-        try await c.from("med_logs").insert(l).execute()
-    }
-
-    // MARK: - 创建家庭：把本地数据整体上传到云端
-
-    func uploadLocalData(cats: [Cat], weights: [WeightRecord], temps: [TempRecord],
-                         plans: [MedPlan], logs: [MedLog]) async throws {
-        let c = try requireClient()
-        if !cats.isEmpty { try await c.from("cats").upsert(cats).execute() }
-        if !plans.isEmpty { try await c.from("med_plans").upsert(plans).execute() }
-        if !weights.isEmpty { try await c.from("weights").upsert(weights).execute() }
-        if !temps.isEmpty { try await c.from("temps").upsert(temps).execute() }
-        if !logs.isEmpty { try await c.from("med_logs").upsert(logs).execute() }
+    } catch {
+        print("通知打卡写入失败: \(error.localizedDescription)")
     }
 }
-#else
-/// 未添加 supabase-swift 依赖时的占位实现，保证工程可编译（仅本地模式可用）
-final class SupabaseService {
-    static let shared = SupabaseService()
-    private init() {}
-
-    struct FamilySnapshot {
-        var cats: [Cat] = []
-        var weights: [WeightRecord] = []
-        var temps: [TempRecord] = []
-        var plans: [MedPlan] = []
-        var logs: [MedLog] = []
-    }
-
-    private func unavailable() -> SupabaseServiceError { .sdkNotLinked }
-
-    func fetchAll(familyId: UUID) async throws -> FamilySnapshot { throw unavailable() }
-    func familyExists(familyId: UUID) async throws -> Bool { throw unavailable() }
-    func upsertCat(_ cat: Cat) async throws { throw unavailable() }
-    func deleteCat(id: UUID) async throws { throw unavailable() }
-    func insertWeight(_ r: WeightRecord) async throws { throw unavailable() }
-    func deleteWeight(id: UUID) async throws { throw unavailable() }
-    func insertTemp(_ r: TempRecord) async throws { throw unavailable() }
-    func deleteTemp(id: UUID) async throws { throw unavailable() }
-    func upsertPlan(_ p: MedPlan) async throws { throw unavailable() }
-    func deletePlan(id: UUID) async throws { throw unavailable() }
-    func insertLog(_ l: MedLog) async throws { throw unavailable() }
-    func uploadLocalData(cats: [Cat], weights: [WeightRecord], temps: [TempRecord],
-                         plans: [MedPlan], logs: [MedLog]) async throws { throw unavailable() }
-}
-#endif

@@ -1,380 +1,309 @@
 import Foundation
-import SwiftData
+import SwiftUI
 
-/// 数据中心：页面只跟 DataStore 打交道，底层按模式走 SwiftData（本地）或 Supabase（同步）。
-///
-/// - 本地模式：未配置 Supabase 或未设置家庭码。数据全在本机 SwiftData。
-/// - 同步模式：直接读写 Supabase（不做离线合并），家庭码存 UserDefaults。
-/// - 两种模式互切时本地数据保留；创建家庭会把本地数据带新 family_id 上传到云端。
+// 今日用药任务（计划 × 时间点）
+struct DoseTask: Identifiable {
+    var id: String { "\(plan.id)-\(time)" }
+    let plan: MedPlan
+    let time: String
+    var status: DoseStatus
+    var log: MedLog?
+}
+
 @MainActor
-final class DataStore: ObservableObject {
-
-    enum Mode: String {
-        case local = "本地模式"
-        case synced = "同步模式"
-    }
-
-    // MARK: - 发布的全局状态
-
-    @Published private(set) var mode: Mode = .local
+class DataStore: ObservableObject {
     @Published var cats: [Cat] = []
     @Published var weights: [WeightRecord] = []
     @Published var temps: [TempRecord] = []
     @Published var plans: [MedPlan] = []
     @Published var logs: [MedLog] = []
-    @Published var isLoading = false
-    @Published var lastError: String?
+    @Published var currentCatId: String?
+    @Published var toast = ""
+    @Published var loading = false
 
-    /// 当前选中的猫（持久化到 UserDefaults）
-    @Published var selectedCatId: UUID? {
-        didSet {
-            UserDefaults.standard.set(selectedCatId?.uuidString, forKey: Self.selectedCatKey)
-        }
-    }
-    private static let selectedCatKey = "cat_health_selected_cat"
+    var currentCat: Cat? { cats.first { $0.id == currentCatId } }
 
-    /// 本地模式使用的稳定 familyId（首次启动生成；创建家庭上传时整体替换）
-    private(set) var localFamilyId: UUID
-    private static let localFamilyKey = "cat_health_local_family_id"
-
-    private var modelContext: ModelContext?
-
-    var currentFamilyId: UUID {
-        Config.familyId ?? localFamilyId
-    }
-
-    // MARK: - 初始化
-
-    init() {
-        if let str = UserDefaults.standard.string(forKey: Self.localFamilyKey),
-           let id = UUID(uuidString: str) {
-            localFamilyId = id
-        } else {
-            let id = UUID()
-            localFamilyId = id
-            UserDefaults.standard.set(id.uuidString, forKey: Self.localFamilyKey)
-        }
-        if let str = UserDefaults.standard.string(forKey: Self.selectedCatKey) {
-            selectedCatId = UUID(uuidString: str)
-        }
-
-        // 通知按钮「已喂/跳过」→ 写 med_logs
-        NotificationManager.shared.logHandler = { [weak self] planId, catId, time, status in
-            Task { @MainActor in
-                self?.recordDose(planId: planId, catId: catId, scheduledTime: time, status: status)
-            }
+    func showToast(_ msg: String) {
+        toast = msg
+        Task {
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            if toast == msg { toast = "" }
         }
     }
 
-    /// 由 RootView 在 onAppear 时注入 SwiftData context 并加载数据
-    func attach(context: ModelContext) {
-        guard modelContext == nil else { return }
-        modelContext = context
-        Task { await reload() }
-    }
-
-    // MARK: - 加载
-
-    func reload() async {
-        isLoading = true
-        defer { isLoading = false }
-
-        if Config.isSyncMode {
-            mode = .synced
-            do {
-                let snap = try await SupabaseService.shared.fetchAll(familyId: currentFamilyId)
-                cats = snap.cats
-                weights = snap.weights
-                temps = snap.temps
-                plans = snap.plans
-                logs = snap.logs
-                lastError = nil
-            } catch {
-                lastError = "同步失败：\(error.localizedDescription)"
-            }
-        } else {
-            mode = .local
-            loadLocal()
-        }
-
-        normalizeSelection()
-        rescheduleNotifications()
-    }
-
-    private func loadLocal() {
-        guard let ctx = modelContext else { return }
+    // ========== 加载 ==========
+    func loadCats() async {
+        guard let fid = Config.familyId else { return }
         do {
-            cats = try ctx.fetch(FetchDescriptor<LocalCat>()).map { $0.toStruct() }
-                .sorted { $0.name < $1.name }
-            weights = try ctx.fetch(FetchDescriptor<LocalWeight>()).map { $0.toStruct() }
-                .sorted { $0.date > $1.date }
-            temps = try ctx.fetch(FetchDescriptor<LocalTemp>()).map { $0.toStruct() }
-                .sorted { $0.date > $1.date }
-            plans = try ctx.fetch(FetchDescriptor<LocalMedPlan>()).map { $0.toStruct() }
-            logs = try ctx.fetch(FetchDescriptor<LocalMedLog>()).map { $0.toStruct() }
-                .sorted { $0.date > $1.date }
+            cats = try await Supa.list(Cat.self, table: "cats", query: [
+                URLQueryItem(name: "select", value: "*"),
+                URLQueryItem(name: "family_id", value: "eq.\(fid)"),
+                URLQueryItem(name: "order", value: "created_at.asc")
+            ])
+            if currentCatId == nil || !cats.contains(where: { $0.id == currentCatId }) {
+                currentCatId = cats.first?.id
+            }
+            if let cid = currentCatId { await loadCatData(cid) }
         } catch {
-            lastError = "本地读取失败：\(error.localizedDescription)"
+            print("loadCats: \(error.localizedDescription)")
+            showToast("加载失败，请检查网络")
         }
     }
 
-    private func normalizeSelection() {
-        if let sel = selectedCatId, cats.contains(where: { $0.id == sel }) { return }
-        selectedCatId = cats.first?.id
+    func loadCatData(_ catId: String) async {
+        guard let fid = Config.familyId else { return }
+        do {
+            async let w = Supa.list(WeightRecord.self, table: "weights", query: [
+                URLQueryItem(name: "select", value: "*"),
+                URLQueryItem(name: "family_id", value: "eq.\(fid)"),
+                URLQueryItem(name: "cat_id", value: "eq.\(catId)"),
+                URLQueryItem(name: "order", value: "date.asc")
+            ])
+            async let t = Supa.list(TempRecord.self, table: "temps", query: [
+                URLQueryItem(name: "select", value: "*"),
+                URLQueryItem(name: "family_id", value: "eq.\(fid)"),
+                URLQueryItem(name: "cat_id", value: "eq.\(catId)"),
+                URLQueryItem(name: "order", value: "date.asc")
+            ])
+            async let p = Supa.list(MedPlan.self, table: "med_plans", query: [
+                URLQueryItem(name: "select", value: "*"),
+                URLQueryItem(name: "family_id", value: "eq.\(fid)"),
+                URLQueryItem(name: "cat_id", value: "eq.\(catId)"),
+                URLQueryItem(name: "order", value: "created_at.asc")
+            ])
+            async let l = Supa.list(MedLog.self, table: "med_logs", query: [
+                URLQueryItem(name: "select", value: "*"),
+                URLQueryItem(name: "family_id", value: "eq.\(fid)"),
+                URLQueryItem(name: "cat_id", value: "eq.\(catId)")
+            ])
+            let (ww, tt, pp, ll) = try await (w, t, p, l)
+            weights = ww; temps = tt; plans = pp; logs = ll
+            NotificationManager.shared.reschedule(plans: pp, cats: cats)
+        } catch {
+            print("loadCatData: \(error.localizedDescription)")
+        }
     }
 
-    private func rescheduleNotifications() {
-        NotificationManager.shared.rescheduleAll(plans: plans, cats: cats)
+    func switchCat(_ id: String) async {
+        currentCatId = id
+        await loadCatData(id)
     }
 
-    private func saveLocal() {
-        guard let ctx = modelContext else { return }
-        do { try ctx.save() } catch { lastError = "本地保存失败：\(error.localizedDescription)" }
-    }
-
-    // MARK: - 猫
-
-    func saveCat(_ cat: Cat) async {
-        if mode == .synced {
-            do {
-                try await SupabaseService.shared.upsertCat(cat)
-                await reload()
-            } catch { lastError = "保存猫咪失败：\(error.localizedDescription)" }
-        } else if let ctx = modelContext {
-            if let existing = try? ctx.fetch(FetchDescriptor<LocalCat>(
-                predicate: #Predicate { $0.id == cat.id })).first {
-                existing.name = cat.name
-                existing.breed = cat.breed
-                existing.birthday = cat.birthday
-            } else {
-                ctx.insert(LocalCat(from: cat))
+    // ========== 今日任务 ==========
+    var todayTasks: [DoseTask] {
+        let today = DateKit.today()
+        let now = Date()
+        var tasks: [DoseTask] = []
+        for plan in plans where plan.active && plan.startDate <= today && (plan.endDate == nil || plan.endDate! >= today) {
+            guard DateKit.isDoseDay(plan, on: today) else { continue }
+            for time in plan.remindTimes {
+                let log = logs.first { $0.planId == plan.id && $0.date == today && $0.scheduledTime == time }
+                var status: DoseStatus = .pending
+                if let log = log {
+                    status = log.status == "taken" ? .taken : .skipped
+                } else if now > DateKit.timeToday(time).addingTimeInterval(30 * 60) {
+                    status = .overdue // 超 30 分钟未喂
+                }
+                tasks.append(DoseTask(plan: plan, time: time, status: status, log: log))
             }
-            saveLocal()
-            loadLocal()
-            normalizeSelection()
         }
+        return tasks.sorted { $0.time < $1.time }
+    }
+    var doseDone: Int { todayTasks.filter { $0.status == .taken }.count }
+    var doseTotal: Int { todayTasks.count }
+    var todayPending: Int { todayTasks.filter { $0.status == .pending || $0.status == .overdue }.count }
+    var nextDose: DoseTask? { todayTasks.first { $0.status == .pending || $0.status == .overdue } }
+
+    // ========== 最新指标 ==========
+    var latestWeight: WeightRecord? { weights.last }
+    var latestTemp: TempRecord? { temps.last }
+    var weightDelta: String {
+        guard weights.count >= 2 else { return "暂无对比数据" }
+        let diff = weights[weights.count - 1].kg - weights[weights.count - 2].kg
+        return "较上次 \(diff >= 0 ? "+" : "")\(String(format: "%.2f", diff)) kg"
+    }
+    var tempStatus: (text: String, warm: Bool) {
+        guard let t = latestTemp else { return ("暂无数据", false) }
+        if t.celsius < 38.0 { return ("偏低，注意保暖", true) }
+        if t.celsius > 39.2 { return ("偏高，建议就医", true) }
+        return ("处于正常范围", false)
+    }
+    // 护理提示：最近 3 条体重极差 >5%
+    var careTip: String {
+        let arr = weights.suffix(3)
+        guard arr.count >= 3 else { return "连续 3 天体重变化超过 5% 时，建议复查饮食与就诊计划。" }
+        let vals = arr.map { $0.kg }
+        let lo = vals.min() ?? 0, hi = vals.max() ?? 0
+        if lo > 0 && (hi - lo) / lo > 0.05 {
+            return "近期体重波动超过 5%，建议关注饮食与精神状态，必要时就医。"
+        }
+        return "连续 3 天体重变化超过 5% 时，建议复查饮食与就诊计划。"
     }
 
-    /// 删除猫，并级联删除其体重/体温/计划/记录
-    func deleteCat(_ cat: Cat) async {
-        if mode == .synced {
-            do {
-                for w in weights where w.catId == cat.id { try await SupabaseService.shared.deleteWeight(id: w.id) }
-                for t in temps where t.catId == cat.id { try await SupabaseService.shared.deleteTemp(id: t.id) }
-                for p in plans where p.catId == cat.id { try await SupabaseService.shared.deletePlan(id: p.id) }
-                try await SupabaseService.shared.deleteCat(id: cat.id)
-                await reload()
-            } catch { lastError = "删除失败：\(error.localizedDescription)" }
-        } else if let ctx = modelContext {
-            if let c = try? ctx.fetch(FetchDescriptor<LocalCat>(predicate: #Predicate { $0.id == cat.id })).first { ctx.delete(c) }
-            if let ws = try? ctx.fetch(FetchDescriptor<LocalWeight>(predicate: #Predicate { $0.catId == cat.id })) { ws.forEach(ctx.delete) }
-            if let ts = try? ctx.fetch(FetchDescriptor<LocalTemp>(predicate: #Predicate { $0.catId == cat.id })) { ts.forEach(ctx.delete) }
-            if let ps = try? ctx.fetch(FetchDescriptor<LocalMedPlan>(predicate: #Predicate { $0.catId == cat.id })) { ps.forEach(ctx.delete) }
-            if let ls = try? ctx.fetch(FetchDescriptor<LocalMedLog>(predicate: #Predicate { $0.catId == cat.id })) { ls.forEach(ctx.delete) }
-            saveLocal()
-            loadLocal()
-            normalizeSelection()
-            rescheduleNotifications()
+    // ========== 计划列表（含完药率/历史拆分） ==========
+    struct PlanItem: Identifiable {
+        var id: String { plan.id }
+        let plan: MedPlan
+        let rate: Int
+        let ongoing: Bool
+    }
+    var planItems: [PlanItem] {
+        let today = DateKit.today()
+        return plans.map { plan in
+            let pl = logs.filter { $0.planId == plan.id }
+            let taken = pl.filter { $0.status == "taken" }.count
+            let total = pl.count
+            let ongoing = plan.active && (plan.endDate == nil || plan.endDate! >= today)
+            return PlanItem(plan: plan, rate: total > 0 ? taken * 100 / total : 0, ongoing: ongoing)
         }
     }
+    var ongoingPlans: [PlanItem] { planItems.filter { $0.ongoing } }
+    var historyPlans: [PlanItem] { planItems.filter { !$0.ongoing } }
 
-    // MARK: - 体重 / 体温
-
-    func addWeight(catId: UUID, date: Date, kg: Double, note: String?) async {
-        let record = WeightRecord(familyId: currentFamilyId, catId: catId, date: date, kg: kg,
-                                  note: note?.isEmpty == true ? nil : note)
-        if mode == .synced {
-            do {
-                try await SupabaseService.shared.insertWeight(record)
-                await reload()
-            } catch { lastError = "保存体重失败：\(error.localizedDescription)" }
-        } else if let ctx = modelContext {
-            ctx.insert(LocalWeight(from: record))
-            saveLocal()
-            loadLocal()
-        }
-    }
-
-    func addTemp(catId: UUID, date: Date, celsius: Double, note: String?) async {
-        let record = TempRecord(familyId: currentFamilyId, catId: catId, date: date, celsius: celsius,
-                                note: note?.isEmpty == true ? nil : note)
-        if mode == .synced {
-            do {
-                try await SupabaseService.shared.insertTemp(record)
-                await reload()
-            } catch { lastError = "保存体温失败：\(error.localizedDescription)" }
-        } else if let ctx = modelContext {
-            ctx.insert(LocalTemp(from: record))
-            saveLocal()
-            loadLocal()
-        }
-    }
-
-    // MARK: - 用药计划
-
-    func savePlan(_ plan: MedPlan) async {
-        if mode == .synced {
-            do {
-                try await SupabaseService.shared.upsertPlan(plan)
-                await reload()
-            } catch { lastError = "保存计划失败：\(error.localizedDescription)" }
-        } else if let ctx = modelContext {
-            if let existing = try? ctx.fetch(FetchDescriptor<LocalMedPlan>(
-                predicate: #Predicate { $0.id == plan.id })).first {
-                existing.drug = plan.drug
-                existing.dose = plan.dose
-                existing.remindTimes = plan.remindTimes
-                existing.startDate = plan.startDate
-                existing.endDate = plan.endDate
-                existing.active = plan.active
-                existing.note = plan.note
+    // ========== 猫咪 ==========
+    func saveCat(name: String, breed: String, birthday: String, avatar: String, editingId: String?) async {
+        guard let fid = Config.familyId else { return }
+        do {
+            if let id = editingId {
+                var patch: [String: Any] = ["name": name, "breed": breed, "birthday": birthday]
+                patch["avatar"] = avatar.isEmpty ? NSNull() : avatar
+                try await Supa.update(table: "cats", id: id, payload: patch)
             } else {
-                ctx.insert(LocalMedPlan(from: plan))
+                let payload: [String: Any] = [
+                    "id": UUID().uuidString, "family_id": fid, "name": name,
+                    "breed": breed, "birthday": birthday, "avatar": avatar
+                ]
+                try await Supa.insert(table: "cats", payload: payload)
             }
-            saveLocal()
-            loadLocal()
-            rescheduleNotifications()
-        }
+            await loadCats()
+            showToast(editingId == nil ? "已添加猫咪" : "已更新")
+        } catch { showToast("保存失败") }
     }
 
-    /// 停用/启用计划
-    func setPlanActive(_ plan: MedPlan, active: Bool) async {
-        var p = plan
-        p.active = active
-        await savePlan(p)
+    // ========== 体重/体温（同日 upsert + 编辑删除） ==========
+    func saveWeight(catId: String, date: String, kg: Double, note: String, editingId: String?) async {
+        await saveMetric(table: "weights", catId: catId, date: date,
+                         valueKey: "kg", value: kg, note: note, editingId: editingId,
+                         existCheck: weights)
+        showToast(editingId == nil ? "体重已记录" : "体重已更新")
+    }
+    func saveTemp(catId: String, date: String, celsius: Double, note: String, editingId: String?) async {
+        await saveMetric(table: "temps", catId: catId, date: date,
+                         valueKey: "celsius", value: celsius, note: note, editingId: editingId,
+                         existCheck: temps)
+        showToast(editingId == nil ? "体温已记录" : "体温已更新")
     }
 
+    private func saveMetric<T: Identifiable>(table: String, catId: String, date: String,
+                                             valueKey: String, value: Double, note: String,
+                                             editingId: String?, existCheck: [T]) async where T.ID == String {
+        guard let fid = Config.familyId else { return }
+        do {
+            if let id = editingId {
+                try await Supa.update(table: table, id: id, payload: ["date": date, valueKey: value, "note": note])
+            } else {
+                // 同日去重：查当天是否已有记录，有则更新
+                let existing = try await Supa.list(WeightRecord.self, table: table, query: [
+                    URLQueryItem(name: "select", value: "id"),
+                    URLQueryItem(name: "family_id", value: "eq.\(fid)"),
+                    URLQueryItem(name: "cat_id", value: "eq.\(catId)"),
+                    URLQueryItem(name: "date", value: "eq.\(date)")
+                ])
+                if let first = existing.first {
+                    try await Supa.update(table: table, id: first.id, payload: [valueKey: value, "note": note])
+                } else {
+                    let payload: [String: Any] = [
+                        "id": UUID().uuidString, "family_id": fid, "cat_id": catId,
+                        "date": date, valueKey: value, "note": note
+                    ]
+                    try await Supa.insert(table: table, payload: payload)
+                }
+            }
+            if let cid = currentCatId { await loadCatData(cid) }
+        } catch { showToast("保存失败") }
+    }
+
+    func deleteRecord(table: String, id: String) async {
+        do {
+            try await Supa.remove(table: table, query: [URLQueryItem(name: "id", value: "eq.\(id)")])
+            if let cid = currentCatId { await loadCatData(cid) }
+            showToast("已删除")
+        } catch { showToast("删除失败") }
+    }
+
+    // ========== 用药计划 ==========
+    func savePlan(payload: [String: Any], editingId: String?) async {
+        guard let fid = Config.familyId else { return }
+        do {
+            var p = payload
+            p["family_id"] = fid
+            if let id = editingId {
+                try await Supa.update(table: "med_plans", id: id, payload: p)
+            } else {
+                p["id"] = UUID().uuidString
+                p["active"] = true
+                try await Supa.insert(table: "med_plans", payload: p)
+            }
+            if let cid = currentCatId { await loadCatData(cid) }
+            showToast(editingId == nil ? "计划已创建" : "计划已更新")
+        } catch { showToast("保存失败") }
+    }
+
+    func stopPlan(_ plan: MedPlan) async {
+        do {
+            try await Supa.update(table: "med_plans", id: plan.id, payload: ["active": false])
+            if let cid = currentCatId { await loadCatData(cid) }
+            showToast("已停用")
+        } catch { showToast("操作失败") }
+    }
+
+    // 删除计划（级联删打卡记录）
     func deletePlan(_ plan: MedPlan) async {
-        if mode == .synced {
-            do {
-                try await SupabaseService.shared.deletePlan(id: plan.id)
-                await reload()
-            } catch { lastError = "删除计划失败：\(error.localizedDescription)" }
-        } else if let ctx = modelContext {
-            if let existing = try? ctx.fetch(FetchDescriptor<LocalMedPlan>(
-                predicate: #Predicate { $0.id == plan.id })).first {
-                ctx.delete(existing)
+        do {
+            try await Supa.remove(table: "med_logs", query: [URLQueryItem(name: "plan_id", value: "eq.\(plan.id)")])
+            try await Supa.remove(table: "med_plans", query: [URLQueryItem(name: "id", value: "eq.\(plan.id)")])
+            if let cid = currentCatId { await loadCatData(cid) }
+            showToast("已删除")
+        } catch { showToast("删除失败") }
+    }
+
+    // ========== 打卡 ==========
+    func markDose(_ task: DoseTask, taken: Bool) async {
+        guard let fid = Config.familyId else { return }
+        let today = DateKit.today()
+        let status = taken ? "taken" : "skipped"
+        do {
+            if let log = task.log {
+                var patch: [String: Any] = ["status": status]
+                if taken { patch["taken_at"] = DateKit.nowISO() }
+                try await Supa.update(table: "med_logs", id: log.id, payload: patch)
+            } else {
+                var payload: [String: Any] = [
+                    "id": UUID().uuidString, "family_id": fid,
+                    "plan_id": task.plan.id, "cat_id": task.plan.catId,
+                    "date": today, "scheduled_time": task.time, "status": status
+                ]
+                if taken { payload["taken_at"] = DateKit.nowISO() }
+                try await Supa.insert(table: "med_logs", payload: payload)
             }
-            saveLocal()
-            loadLocal()
-            rescheduleNotifications()
-        }
+            if let cid = currentCatId { await loadCatData(cid) }
+            showToast(taken ? "已记录本次用药" : "已标记为跳过")
+        } catch { showToast("操作失败") }
     }
 
-    // MARK: - 用药记录
-
-    /// 记录一次喂药结果（今天页面按钮 / 通知 action 共用）
-    func recordDose(planId: UUID?, catId: UUID, scheduledTime: String, status: MedLogStatus,
-                    date: Date = DateKit.today, note: String? = nil) async {
-        let day = Calendar.current.startOfDay(for: date)
-        // 防重复：同一计划+同一天+同一时间点已有记录则忽略（通知可能被点两次）
-        if let planId, logs.contains(where: {
-            $0.planId == planId && $0.date == day && $0.scheduledTime == scheduledTime
-        }) { return }
-
-        let log = MedLog(familyId: currentFamilyId, planId: planId, catId: catId, date: day,
-                         scheduledTime: scheduledTime, status: status,
-                         takenAt: status == .taken ? Date() : nil,
-                         note: note?.isEmpty == true ? nil : note)
-        if mode == .synced {
-            do {
-                try await SupabaseService.shared.insertLog(log)
-                await reload()
-            } catch { lastError = "记录失败：\(error.localizedDescription)" }
-        } else if let ctx = modelContext {
-            ctx.insert(LocalMedLog(from: log))
-            saveLocal()
-            loadLocal()
-        }
-    }
-
-    // MARK: - 家庭同步
-
-    /// 创建家庭：生成新家庭码，把本地全部数据改挂到新 familyId 后上传，进入同步模式
-    func createFamily() async -> Bool {
-        guard Config.isSupabaseConfigured else {
-            lastError = "请先在 Config.swift 中填写 Supabase 配置"
-            return false
-        }
-        isLoading = true
-        defer { isLoading = false }
-
-        let newFamily = UUID()
-        // 确保本地数据已加载
-        if mode == .local { loadLocal() }
-
-        let newCats = cats.map { Cat(id: $0.id, familyId: newFamily, name: $0.name, breed: $0.breed, birthday: $0.birthday) }
-        let newWeights = weights.map { WeightRecord(id: $0.id, familyId: newFamily, catId: $0.catId, date: $0.date, kg: $0.kg, note: $0.note) }
-        let newTemps = temps.map { TempRecord(id: $0.id, familyId: newFamily, catId: $0.catId, date: $0.date, celsius: $0.celsius, note: $0.note) }
-        let newPlans = plans.map { MedPlan(id: $0.id, familyId: newFamily, catId: $0.catId, drug: $0.drug, dose: $0.dose,
-                                           remindTimes: $0.remindTimes, startDate: $0.startDate, endDate: $0.endDate,
-                                           active: $0.active, note: $0.note) }
-        let newLogs = logs.map { MedLog(id: $0.id, familyId: newFamily, planId: $0.planId, catId: $0.catId, date: $0.date,
-                                        scheduledTime: $0.scheduledTime, status: $0.status, takenAt: $0.takenAt, note: $0.note) }
-
-        do {
-            try await SupabaseService.shared.uploadLocalData(cats: newCats, weights: newWeights,
-                                                             temps: newTemps, plans: newPlans, logs: newLogs)
-            Config.familyId = newFamily
-            await reload()
-            return true
-        } catch {
-            lastError = "创建家庭失败：\(error.localizedDescription)"
-            return false
-        }
-    }
-
-    /// 加入家庭：输入家庭码，拉取云端数据，进入同步模式
-    func joinFamily(code: String) async -> Bool {
-        guard Config.isSupabaseConfigured else {
-            lastError = "请先在 Config.swift 中填写 Supabase 配置"
-            return false
-        }
-        guard let id = UUID(uuidString: code.trimmingCharacters(in: .whitespacesAndNewlines)) else {
-            lastError = "家庭码格式不正确（应为 UUID）"
-            return false
-        }
-        isLoading = true
-        defer { isLoading = false }
-
-        Config.familyId = id
-        await reload()
-        if lastError != nil {
-            // 拉取失败则回退
-            Config.familyId = nil
-            await reload()
-            return false
-        }
-        return true
-    }
-
-    /// 退出家庭：回到本地模式（本地数据保留）
-    func leaveFamily() {
-        Config.familyId = nil
-        Task { await reload() }
-    }
-
-    // MARK: - 导出
-
-    /// 导出全部数据为 JSON 文件，返回临时文件 URL（ShareLink 用）
-    func exportJSONFile() -> URL? {
-        let bundle = ExportBundle(
-            exportedAt: DateKit.timestampString(Date()),
-            familyId: currentFamilyId.uuidString,
-            cats: cats, weights: weights, temps: temps,
-            medPlans: plans, medLogs: logs
-        )
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        guard let data = try? encoder.encode(bundle) else { return nil }
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("猫咪健康数据-\(DateKit.day(Date())).json")
-        do {
-            try data.write(to: url, options: .atomic)
-            return url
-        } catch {
-            lastError = "导出失败：\(error.localizedDescription)"
-            return nil
-        }
+    // ========== 导出备份 ==========
+    func exportJSON() -> String {
+        let data: [String: Any] = [
+            "family_id": Config.familyId ?? "",
+            "exported_at": DateKit.nowISO(),
+            "data": [
+                "cats": cats.map { ["id": $0.id, "name": $0.name, "breed": $0.breed ?? "", "birthday": $0.birthday ?? ""] },
+                "weights": weights.map { ["date": $0.date, "kg": $0.kg, "note": $0.note ?? ""] },
+                "temps": temps.map { ["date": $0.date, "celsius": $0.celsius, "note": $0.note ?? ""] }
+            ]
+        ]
+        guard let d = try? JSONSerialization.data(withJSONObject: data, options: .prettyPrinted),
+              let s = String(data: d, encoding: .utf8) else { return "{}" }
+        return s
     }
 }

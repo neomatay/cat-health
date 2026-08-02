@@ -1,305 +1,300 @@
 import SwiftUI
 
-/// Tab 3「用药」：计划列表 + 新增/编辑计划
+// ============================================================
+// 用药页：进度 hero / 今日剂次 / 长期计划 / 历史计划（折叠）
+// ============================================================
 struct MedsView: View {
-    @EnvironmentObject private var store: DataStore
-
-    @State private var showEditor = false
+    @EnvironmentObject var store: DataStore
+    @State private var showAddPlan = false
     @State private var editingPlan: MedPlan?
-    @State private var planPendingDelete: MedPlan?
+    @State private var showHistory = false
+    @State private var planToDelete: MedPlan?
     @State private var showDeleteConfirm = false
 
-    private var currentCat: Cat? {
-        store.cats.first { $0.id == store.selectedCatId }
-    }
-
-    /// 当前猫的计划（生效中在前，按开始日期倒序）
-    private var plans: [MedPlan] {
-        guard let cat = currentCat else { return [] }
-        return store.plans
-            .filter { $0.catId == cat.id }
-            .sorted { a, b in
-                if a.active != b.active { return a.active && !b.active }
-                return a.startDate > b.startDate
-            }
-    }
-
     var body: some View {
         NavigationStack {
-            Group {
+            ScrollView {
                 if store.cats.isEmpty {
-                    EmptyStateView(systemImage: "pills",
-                                   title: "还没有猫咪档案",
-                                   message: "先在「我的」里添加猫咪，再来配置用药计划")
+                    emptyHint
                 } else {
-                    VStack(spacing: 0) {
-                        CatSwitcher()
-
-                        if plans.isEmpty {
-                            Spacer()
-                            EmptyStateView(systemImage: "pills",
-                                           title: "还没有用药计划",
-                                           message: "点右上角「+」新建计划，App 会按提醒时间推送本地通知")
-                            Spacer()
-                        } else {
-                            List {
-                                ForEach(plans) { plan in
-                                    PlanRow(plan: plan,
-                                            completion: completionRate(for: plan))
-                                        .contentShape(Rectangle())
-                                        .onTapGesture {
-                                            editingPlan = plan
-                                            showEditor = true
-                                        }
-                                        .swipeActions(edge: .trailing) {
-                                            Button(role: .destructive) {
-                                                planPendingDelete = plan
-                                                showDeleteConfirm = true
-                                            } label: {
-                                                Label("删除", systemImage: "trash")
-                                            }
-                                            Button {
-                                                Task { await store.setPlanActive(plan, active: !plan.active) }
-                                            } label: {
-                                                Label(plan.active ? "停用" : "启用",
-                                                      systemImage: plan.active ? "pause.circle" : "play.circle")
-                                            }
-                                            .tint(.orange)
-                                        }
-                                }
-                            }
-                        }
+                    VStack(alignment: .leading, spacing: 0) {
+                        heading
+                        hero
+                        todaySection
+                        ongoingSection
+                        historySection
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 30)
                 }
             }
-            .navigationTitle("用药")
-            .toolbar {
-                if currentCat != nil {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            editingPlan = nil
-                            showEditor = true
-                        } label: {
-                            Image(systemName: "plus")
-                        }
-                    }
-                }
+            .background(Color.appBg)
+            .navigationBarHidden(true)
+        }
+        .sheet(isPresented: $showAddPlan) { PlanSheet(editing: nil) }
+        .sheet(item: $editingPlan) { p in PlanSheet(editing: p) }
+        .confirmationDialog("删除计划", isPresented: $showDeleteConfirm, presenting: planToDelete) { plan in
+            Button("删除「\(plan.drug)」", role: .destructive) {
+                Task { await store.deletePlan(plan) }
             }
-            .sheet(isPresented: $showEditor) {
-                if let cat = currentCat {
-                    PlanEditSheet(cat: cat, plan: editingPlan)
-                }
-            }
-            .confirmationDialog("确定删除该计划？",
-                                isPresented: $showDeleteConfirm,
-                                titleVisibility: .visible) {
-                Button("删除", role: .destructive) {
-                    if let plan = planPendingDelete {
-                        Task { await store.deletePlan(plan) }
-                    }
-                }
-                Button("取消", role: .cancel) {}
-            } message: {
-                Text("历史喂药记录会保留，仅删除计划本身。")
-            }
+            Button("取消", role: .cancel) {}
+        } message: { _ in
+            Text("该计划及其打卡记录将一并删除，不可恢复。")
         }
     }
 
-    /// 完药率 = 已喂 / (已喂 + 跳过)
-    private func completionRate(for plan: MedPlan) -> (taken: Int, total: Int)? {
-        let planLogs = store.logs.filter { $0.planId == plan.id && ($0.status == .taken || $0.status == .skipped) }
-        guard !planLogs.isEmpty else { return nil }
-        let taken = planLogs.filter { $0.status == .taken }.count
-        return (taken, planLogs.count)
+    private var heading: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("用药管理").font(.subheadline).foregroundStyle(Color.appGray)
+                Text("每一剂都有记录").font(.largeTitle.bold())
+            }
+            Spacer()
+            Button { showAddPlan = true } label: {
+                Image(systemName: "plus")
+                    .font(.body)
+                    .frame(width: 40, height: 40)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.appLine, lineWidth: 1))
+            }
+            .foregroundStyle(Color.primary)
+        }
+        .padding(.top, 18).padding(.bottom, 16)
+    }
+
+    // 今日进度 hero
+    private var hero: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("今日进度").font(.caption).foregroundStyle(Color(red: 200/255, green: 226/255, blue: 214/255))
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text("\(store.doseDone)").font(.system(size: 31, weight: .bold))
+                    Text("/ \(store.doseTotal)").font(.subheadline).foregroundStyle(Color(red: 200/255, green: 226/255, blue: 214/255))
+                }
+                Text("剂次已完成").font(.caption).foregroundStyle(Color(red: 200/255, green: 226/255, blue: 214/255))
+            }
+            Spacer()
+            // 环形进度
+            ZStack {
+                Circle().stroke(Color.white.opacity(0.22), lineWidth: 6)
+                Circle()
+                    .trim(from: 0, to: store.doseTotal > 0 ? CGFloat(store.doseDone) / CGFloat(store.doseTotal) : 0)
+                    .stroke(Color.appGold, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                Image(systemName: "pills").foregroundStyle(Color.appGold)
+            }
+            .frame(width: 60, height: 60)
+        }
+        .foregroundStyle(.white)
+        .padding(19)
+        .background(Color.appGreenDeep)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    // 今天
+    private var todaySection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("今天").font(.headline)
+                Spacer()
+                Text(DateKit.fmtMD(DateKit.today())).font(.caption).foregroundStyle(Color.appGray)
+            }
+            .padding(.bottom, 10)
+
+            if store.todayTasks.isEmpty {
+                Text("今天没有用药安排")
+                    .font(.subheadline).foregroundStyle(Color.appGray)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 20)
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(store.todayTasks) { task in
+                        DoseCard(task: task)
+                    }
+                }
+            }
+        }
+        .padding(.top, 22)
+    }
+
+    // 长期计划（进行中）
+    private var ongoingSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("长期用药计划").font(.headline)
+                Spacer()
+                Button { showAddPlan = true } label: {
+                    HStack(spacing: 3) {
+                        Text("新增"); Image(systemName: "plus").font(.caption2)
+                    }
+                    .font(.subheadline).foregroundStyle(Color.appGreen)
+                }
+            }
+            .padding(.bottom, 6)
+
+            if store.ongoingPlans.isEmpty {
+                Text("还没有用药计划，点右上角 + 新增")
+                    .font(.subheadline).foregroundStyle(Color.appGray)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 18)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(store.ongoingPlans) { item in
+                        PlanRow(item: item, onEdit: { editingPlan = $0 }, onStop: { plan in
+                            Task { await store.stopPlan(plan) }
+                        }, onDelete: nil)
+                    }
+                }
+            }
+        }
+        .padding(.top, 24)
+    }
+
+    // 历史计划（折叠）
+    @ViewBuilder
+    private var historySection: some View {
+        if !store.historyPlans.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                Button { withAnimation { showHistory.toggle() } } label: {
+                    HStack {
+                        Text("历史用药计划").font(.headline).foregroundStyle(Color.primary)
+                        Text("\(store.historyPlans.count)").font(.caption).foregroundStyle(Color.appGray)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption).foregroundStyle(Color.appGray)
+                            .rotationEffect(.degrees(showHistory ? 90 : 0))
+                    }
+                }
+                .padding(.bottom, 6)
+
+                if showHistory {
+                    VStack(spacing: 0) {
+                        ForEach(store.historyPlans) { item in
+                            PlanRow(item: item, onEdit: { editingPlan = $0 }, onStop: nil, onDelete: {
+                                planToDelete = $0
+                                showDeleteConfirm = true
+                            })
+                            .opacity(0.6)
+                        }
+                    }
+                }
+            }
+            .padding(.top, 24)
+        }
+    }
+
+    private var emptyHint: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "pawprint").font(.system(size: 40))
+                .foregroundStyle(Color(red: 182/255, green: 198/255, blue: 188/255))
+            Text("添加猫咪后管理用药").font(.subheadline).foregroundStyle(Color.appGray)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 120)
     }
 }
 
-// MARK: - 计划行
-
-private struct PlanRow: View {
-    let plan: MedPlan
-    let completion: (taken: Int, total: Int)?
+// 今日剂次卡
+struct DoseCard: View {
+    @EnvironmentObject var store: DataStore
+    let task: DoseTask
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(plan.drug)
-                    .font(.headline)
-                    .foregroundStyle(plan.active ? .primary : .secondary)
-                if !plan.active {
-                    Text("已停用")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color(.tertiarySystemBackground))
-                        .clipShape(Capsule())
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Text(task.time).font(.subheadline.bold())
+                    .foregroundStyle(Color(red: 45/255, green: 89/255, blue: 73/255))
+                    .frame(width: 46, alignment: .leading)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(task.plan.drug).font(.subheadline.weight(.medium))
+                    Text(subText).font(.caption).foregroundStyle(Color.appGray)
                 }
                 Spacer()
-                if let completion {
-                    let rate = Double(completion.taken) / Double(max(completion.total, 1))
-                    Text(String(format: "完药率 %.0f%%", rate * 100))
-                        .font(.caption)
-                        .foregroundStyle(rate >= 0.8 ? .green : .orange)
+                StatusPill(status: task.status)
+            }
+            if task.status == .pending || task.status == .overdue {
+                HStack(spacing: 9) {
+                    Button { Task { await store.markDose(task, taken: false) } } label: {
+                        Text("标记漏服")
+                            .font(.subheadline)
+                            .frame(maxWidth: .infinity).frame(height: 41)
+                            .foregroundStyle(Color(red: 88/255, green: 112/255, blue: 103/255))
+                            .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color(red: 215/255, green: 227/255, blue: 220/255), lineWidth: 1))
+                    }
+                    Button { Task { await store.markDose(task, taken: true) } } label: {
+                        Label("记录已喂", systemImage: "checkmark")
+                            .font(.subheadline)
+                            .frame(maxWidth: .infinity).frame(height: 41)
+                            .foregroundStyle(.white)
+                            .background(Color.appGreen)
+                            .clipShape(RoundedRectangle(cornerRadius: 9))
+                    }
                 }
-            }
-
-            Text("剂量：\(plan.dose)")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            HStack(spacing: 6) {
-                Image(systemName: "bell.fill")
-                    .font(.caption2)
-                Text(plan.remindTimes.sorted().joined(separator: " / "))
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
-            HStack(spacing: 6) {
-                Image(systemName: "calendar")
-                    .font(.caption2)
-                if let end = plan.endDate {
-                    Text("\(DisplayFormat.full(plan.startDate)) 至 \(DisplayFormat.full(end))")
-                } else {
-                    Text("\(DisplayFormat.full(plan.startDate)) 起 · 长期")
-                }
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
-            if let note = plan.note, !note.isEmpty {
-                Text(note)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                .padding(.top, 13)
             }
         }
-        .padding(.vertical, 4)
+        .padding(14)
+        .cardStyle()
+    }
+
+    private var subText: String {
+        var s = task.plan.dose ?? "按医嘱"
+        if task.status == .taken, let at = task.log?.takenAt {
+            s += " · \(DateKit.fmtISO(at)) 已喂"
+        }
+        return s
     }
 }
 
-// MARK: - 新增/编辑计划 Sheet
-
-struct PlanEditSheet: View {
-    @EnvironmentObject private var store: DataStore
-    @Environment(\.dismiss) private var dismiss
-
-    let cat: Cat
-    let plan: MedPlan?   // nil = 新建
-
-    @State private var drug = ""
-    @State private var dose = ""
-    @State private var timesPerDay = 1
-    @State private var timeDates: [Date] = []
-    @State private var startDate = Date()
-    @State private var isLongTerm = true
-    @State private var endDate = Date()
-    @State private var note = ""
-
-    private var isValid: Bool {
-        !drug.trimmingCharacters(in: .whitespaces).isEmpty
-            && !dose.trimmingCharacters(in: .whitespaces).isEmpty
-            && (isLongTerm || endDate >= Calendar.current.startOfDay(for: startDate))
-    }
-
-    init(cat: Cat, plan: MedPlan?) {
-        self.cat = cat
-        self.plan = plan
-        // 编辑时回填
-        if let plan {
-            _drug = State(initialValue: plan.drug)
-            _dose = State(initialValue: plan.dose)
-            let times = plan.remindTimes.sorted()
-            _timesPerDay = State(initialValue: max(times.count, 1))
-            _timeDates = State(initialValue: times.compactMap { DateKit.dateOn(day: Date(), time: $0) })
-            _startDate = State(initialValue: plan.startDate)
-            _isLongTerm = State(initialValue: plan.endDate == nil)
-            _endDate = State(initialValue: plan.endDate ?? Date())
-            _note = State(initialValue: plan.note ?? "")
-        } else {
-            // 新建默认 08:00
-            _timeDates = State(initialValue: [DateKit.dateOn(day: Date(), time: "08:00") ?? Date()])
-        }
-    }
+// 计划行
+struct PlanRow: View {
+    let item: DataStore.PlanItem
+    let onEdit: (MedPlan) -> Void
+    var onStop: ((MedPlan) -> Void)? = nil
+    var onDelete: ((MedPlan) -> Void)? = nil
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("药品信息") {
-                    TextField("药品名称，如 速诺", text: $drug)
-                    TextField("剂量，如 50mg（1片）", text: $dose)
-                }
-
-                Section {
-                    Stepper("每天 \(timesPerDay) 次", value: $timesPerDay, in: 1...4)
-                        .onChange(of: timesPerDay) { _, _ in syncTimeSlots() }
-                    ForEach(0..<timesPerDay, id: \.self) { i in
-                        if i < timeDates.count {
-                            DatePicker("第\(i + 1)次", selection: $timeDates[i],
-                                       displayedComponents: .hourAndMinute)
-                        }
-                    }
-                } header: {
-                    Text("提醒时间")
-                } footer: {
-                    Text("到点会推送本地通知，可直接在通知上点「已喂 / 跳过」")
-                }
-
-                Section("用药周期") {
-                    DatePicker("开始日期", selection: $startDate, displayedComponents: .date)
-                    Toggle("长期用药", isOn: $isLongTerm)
-                    if !isLongTerm {
-                        DatePicker("结束日期", selection: $endDate, in: startDate..., displayedComponents: .date)
-                    }
-                }
-
-                Section("备注") {
-                    TextField("可选，如 随餐服用", text: $note)
-                }
+        HStack(spacing: 11) {
+            IconBadge(systemName: "pills", size: 35)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.plan.drug).font(.subheadline.weight(.medium))
+                Text(detailText).font(.caption).foregroundStyle(Color.appGray)
+                Text("\(item.plan.startDate) ~ \(item.plan.endDate ?? "长期") · 完药率 \(item.rate)%")
+                    .font(.caption2).foregroundStyle(Color.appGray.opacity(0.8))
             }
-            .navigationTitle(plan == nil ? "新建计划" : "编辑计划")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+            Spacer()
+            HStack(spacing: 6) {
+                iconBtn("pencil") { onEdit(item.plan) }
+                if let onStop = onStop {
+                    iconBtn("pause") { onStop(item.plan) }
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") { save() }
-                        .disabled(!isValid)
+                if let onDelete = onDelete {
+                    iconBtn("xmark", danger: true) { onDelete(item.plan) }
                 }
             }
         }
+        .padding(.vertical, 10)
+        .overlay(alignment: .bottom) { Divider().opacity(0.5) }
     }
 
-    /// 次数变化时补齐/裁剪时间槽
-    private func syncTimeSlots() {
-        let defaults = ["08:00", "14:00", "20:00", "23:00"]
-        while timeDates.count < timesPerDay {
-            let t = defaults[min(timeDates.count, defaults.count - 1)]
-            timeDates.append(DateKit.dateOn(day: Date(), time: t) ?? Date())
-        }
-        if timeDates.count > timesPerDay {
-            timeDates = Array(timeDates.prefix(timesPerDay))
-        }
+    private var detailText: String {
+        var s = ""
+        if let dose = item.plan.dose, !dose.isEmpty { s += dose + " · " }
+        s += DateKit.freqText(item.plan) + " · 用药 " + item.plan.remindTimes.joined(separator: "、")
+        if let before = item.plan.remindBefore, before > 0 { s += " · 提前\(before)分钟提醒" }
+        return s
     }
 
-    private func save() {
-        let times = timeDates.prefix(timesPerDay).map(DateKit.timeString)
-        let newPlan = MedPlan(
-            id: plan?.id ?? UUID(),
-            familyId: store.currentFamilyId,
-            catId: cat.id,
-            drug: drug.trimmingCharacters(in: .whitespaces),
-            dose: dose.trimmingCharacters(in: .whitespaces),
-            remindTimes: times,
-            startDate: startDate,
-            endDate: isLongTerm ? nil : endDate,
-            active: plan?.active ?? true,
-            note: note.isEmpty ? nil : note
-        )
-        Task {
-            await store.savePlan(newPlan)
-            dismiss()
+    private func iconBtn(_ name: String, danger: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: name)
+                .font(.caption)
+                .foregroundStyle(danger ? Color.missText : Color(red: 64/255, green: 81/255, blue: 74/255))
+                .frame(width: 34, height: 34)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.appLine, lineWidth: 1))
         }
     }
 }

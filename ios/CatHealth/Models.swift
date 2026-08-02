@@ -1,518 +1,197 @@
 import Foundation
-import SwiftData
 
-// MARK: - 日期工具
+// ============================================================
+// 数据模型：与 Supabase 表结构一一对应（snake_case 列名）
+// ============================================================
 
-enum DateKit {
-    /// yyyy-MM-dd（对应 Postgres date 类型；个人自用，直接用本地时区）
-    static let dayFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.calendar = Calendar(identifier: .gregorian)
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
-
-    /// HH:mm（对应 text 类型的提醒/计划时间）
-    static let timeFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "HH:mm"
-        return f
-    }()
-
-    static func day(_ date: Date) -> String { dayFormatter.string(from: date) }
-
-    static func parseDay(_ str: String) -> Date? {
-        dayFormatter.date(from: str).map { Calendar.current.startOfDay(for: $0) }
-    }
-
-    /// timestamptz 解析：优先带毫秒，其次不带
-    static func parseTimestamp(_ str: String) -> Date? {
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let d = iso.date(from: str) { return d }
-        iso.formatOptions = [.withInternetDateTime]
-        return iso.date(from: str)
-    }
-
-    static func timestampString(_ date: Date) -> String {
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return iso.string(from: date)
-    }
-
-    static var today: Date { Calendar.current.startOfDay(for: Date()) }
-
-    /// 把 Date 的时间部分转成 "HH:mm"
-    static func timeString(_ date: Date) -> String { timeFormatter.string(from: date) }
-
-    /// 把 "HH:mm" 合成到某天的具体时刻
-    static func dateOn(day: Date, time: String) -> Date? {
-        let parts = time.split(separator: ":").compactMap { Int($0) }
-        guard parts.count == 2 else { return nil }
-        return Calendar.current.date(bySettingHour: parts[0], minute: parts[1], second: 0, of: day)
-    }
-}
-
-// MARK: - 用药记录状态
-
-enum MedLogStatus: String, Codable, CaseIterable {
-    case pending   // 待喂（内存态，一般不落库）
-    case taken     // 已喂
-    case skipped   // 跳过
-    case missed    // 错过（展示态）
-
-    var label: String {
-        switch self {
-        case .pending: return "待喂"
-        case .taken: return "已喂"
-        case .skipped: return "跳过"
-        case .missed: return "错过"
-        }
-    }
-}
-
-// MARK: - 猫
-
-struct Cat: Codable, Identifiable, Hashable {
-    var id: UUID
-    var familyId: UUID
+struct Cat: Codable, Identifiable {
+    var id: String
+    var familyId: String
     var name: String
     var breed: String?
-    var birthday: Date?
+    var birthday: String?     // yyyy-MM-dd
+    var avatar: String?       // base64 压缩照片
+    var createdAt: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, breed
+        case id, name, breed, birthday, avatar
         case familyId = "family_id"
-        case birthday
-    }
-
-    init(id: UUID = UUID(), familyId: UUID, name: String, breed: String? = nil, birthday: Date? = nil) {
-        self.id = id
-        self.familyId = familyId
-        self.name = name
-        self.breed = breed
-        self.birthday = birthday
-    }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(UUID.self, forKey: .id)
-        familyId = try c.decode(UUID.self, forKey: .familyId)
-        name = try c.decode(String.self, forKey: .name)
-        breed = try c.decodeIfPresent(String.self, forKey: .breed)
-        birthday = try c.decodeIfPresent(String.self, forKey: .birthday).flatMap(DateKit.parseDay)
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(id, forKey: .id)
-        try c.encode(familyId, forKey: .familyId)
-        try c.encode(name, forKey: .name)
-        try c.encodeIfPresent(breed, forKey: .breed)
-        try c.encodeIfPresent(birthday.map(DateKit.day), forKey: .birthday)
-    }
-
-    /// 年龄文案，如 "1岁3个月"
-    var ageText: String? {
-        guard let birthday else { return nil }
-        let comp = Calendar.current.dateComponents([.year, .month], from: birthday, to: Date())
-        let y = comp.year ?? 0, m = comp.month ?? 0
-        if y <= 0 && m <= 0 { return "不满1个月" }
-        if y <= 0 { return "\(m)个月" }
-        if m <= 0 { return "\(y)岁" }
-        return "\(y)岁\(m)个月"
+        case createdAt = "created_at"
     }
 }
 
-// MARK: - 体重记录
-
-struct WeightRecord: Codable, Identifiable, Hashable {
-    var id: UUID
-    var familyId: UUID
-    var catId: UUID
-    var date: Date
+struct WeightRecord: Codable, Identifiable {
+    var id: String
+    var familyId: String
+    var catId: String
+    var date: String          // yyyy-MM-dd
     var kg: Double
     var note: String?
+    var createdAt: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, kg, note, date
+        case id, date, kg, note
         case familyId = "family_id"
         case catId = "cat_id"
-    }
-
-    init(id: UUID = UUID(), familyId: UUID, catId: UUID, date: Date, kg: Double, note: String? = nil) {
-        self.id = id
-        self.familyId = familyId
-        self.catId = catId
-        self.date = Calendar.current.startOfDay(for: date)
-        self.kg = kg
-        self.note = note
-    }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(UUID.self, forKey: .id)
-        familyId = try c.decode(UUID.self, forKey: .familyId)
-        catId = try c.decode(UUID.self, forKey: .catId)
-        let dayStr = try c.decode(String.self, forKey: .date)
-        date = DateKit.parseDay(dayStr) ?? DateKit.today
-        kg = try c.decode(Double.self, forKey: .kg)
-        note = try c.decodeIfPresent(String.self, forKey: .note)
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(id, forKey: .id)
-        try c.encode(familyId, forKey: .familyId)
-        try c.encode(catId, forKey: .catId)
-        try c.encode(DateKit.day(date), forKey: .date)
-        try c.encode(kg, forKey: .kg)
-        try c.encodeIfPresent(note, forKey: .note)
+        case createdAt = "created_at"
     }
 }
 
-// MARK: - 体温记录
-
-struct TempRecord: Codable, Identifiable, Hashable {
-    var id: UUID
-    var familyId: UUID
-    var catId: UUID
-    var date: Date
+struct TempRecord: Codable, Identifiable {
+    var id: String
+    var familyId: String
+    var catId: String
+    var date: String
     var celsius: Double
     var note: String?
+    var createdAt: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, date, note
+        case id, date, celsius, note
         case familyId = "family_id"
         case catId = "cat_id"
-        case celsius
-    }
-
-    init(id: UUID = UUID(), familyId: UUID, catId: UUID, date: Date, celsius: Double, note: String? = nil) {
-        self.id = id
-        self.familyId = familyId
-        self.catId = catId
-        self.date = Calendar.current.startOfDay(for: date)
-        self.celsius = celsius
-        self.note = note
-    }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(UUID.self, forKey: .id)
-        familyId = try c.decode(UUID.self, forKey: .familyId)
-        catId = try c.decode(UUID.self, forKey: .catId)
-        let dayStr = try c.decode(String.self, forKey: .date)
-        date = DateKit.parseDay(dayStr) ?? DateKit.today
-        celsius = try c.decode(Double.self, forKey: .celsius)
-        note = try c.decodeIfPresent(String.self, forKey: .note)
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(id, forKey: .id)
-        try c.encode(familyId, forKey: .familyId)
-        try c.encode(catId, forKey: .catId)
-        try c.encode(DateKit.day(date), forKey: .date)
-        try c.encode(celsius, forKey: .celsius)
-        try c.encodeIfPresent(note, forKey: .note)
-    }
-
-    /// 是否超出正常体温区间
-    var isAbnormal: Bool {
-        celsius < Config.tempNormalLow || celsius > Config.tempNormalHigh
+        case createdAt = "created_at"
     }
 }
 
-// MARK: - 用药计划
-
-struct MedPlan: Codable, Identifiable, Hashable {
-    var id: UUID
-    var familyId: UUID
-    var catId: UUID
+struct MedPlan: Codable, Identifiable {
+    var id: String
+    var familyId: String
+    var catId: String
     var drug: String
-    var dose: String
-    var remindTimes: [String]      // ["08:00", "20:00"]
-    var startDate: Date
-    var endDate: Date?             // nil = 长期
+    var dose: String?               // 组合文本，如 "0.5 片" / "250 毫克"
+    var remindTimes: [String]       // 用药时间，如 ["08:00","20:00"]
+    var freqType: String?           // daily | weekly | interval（nil 视为 daily）
+    var weekdays: [Int]?            // weekly：0=周日 1=周一 ... 6=周六
+    var intervalDays: Int?          // interval：每 N 天一次（以 startDate 为第一次）
+    var remindBefore: Int?          // 提前提醒分钟数（0=准时）
+    var startDate: String
+    var endDate: String?            // nil = 长期
     var active: Bool
     var note: String?
+    var createdAt: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, drug, dose, active, note
+        case id, drug, dose, note, active
         case familyId = "family_id"
         case catId = "cat_id"
         case remindTimes = "remind_times"
+        case freqType = "freq_type"
+        case weekdays, intervalDays = "interval_days"
+        case remindBefore = "remind_before"
         case startDate = "start_date"
         case endDate = "end_date"
-    }
-
-    init(id: UUID = UUID(), familyId: UUID, catId: UUID, drug: String, dose: String,
-         remindTimes: [String], startDate: Date, endDate: Date? = nil, active: Bool = true, note: String? = nil) {
-        self.id = id
-        self.familyId = familyId
-        self.catId = catId
-        self.drug = drug
-        self.dose = dose
-        self.remindTimes = remindTimes
-        self.startDate = Calendar.current.startOfDay(for: startDate)
-        self.endDate = endDate.map { Calendar.current.startOfDay(for: $0) }
-        self.active = active
-        self.note = note
-    }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(UUID.self, forKey: .id)
-        familyId = try c.decode(UUID.self, forKey: .familyId)
-        catId = try c.decode(UUID.self, forKey: .catId)
-        drug = try c.decode(String.self, forKey: .drug)
-        dose = try c.decode(String.self, forKey: .dose)
-        remindTimes = try c.decodeIfPresent([String].self, forKey: .remindTimes) ?? []
-        let startStr = try c.decode(String.self, forKey: .startDate)
-        startDate = DateKit.parseDay(startStr) ?? DateKit.today
-        endDate = try c.decodeIfPresent(String.self, forKey: .endDate).flatMap(DateKit.parseDay)
-        active = try c.decodeIfPresent(Bool.self, forKey: .active) ?? true
-        note = try c.decodeIfPresent(String.self, forKey: .note)
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(id, forKey: .id)
-        try c.encode(familyId, forKey: .familyId)
-        try c.encode(catId, forKey: .catId)
-        try c.encode(drug, forKey: .drug)
-        try c.encode(dose, forKey: .dose)
-        try c.encode(remindTimes, forKey: .remindTimes)
-        try c.encode(DateKit.day(startDate), forKey: .startDate)
-        try c.encodeIfPresent(endDate.map(DateKit.day), forKey: .endDate)
-        try c.encode(active, forKey: .active)
-        try c.encodeIfPresent(note, forKey: .note)
-    }
-
-    /// 某天是否在该计划生效期内
-    func covers(day: Date) -> Bool {
-        let d = Calendar.current.startOfDay(for: day)
-        if d < startDate { return false }
-        if let endDate, d > endDate { return false }
-        return true
+        case createdAt = "created_at"
     }
 }
 
-// MARK: - 用药记录
-
-struct MedLog: Codable, Identifiable, Hashable {
-    var id: UUID
-    var familyId: UUID
-    var planId: UUID?
-    var catId: UUID
-    var date: Date
-    var scheduledTime: String   // "HH:mm"
-    var status: MedLogStatus
-    var takenAt: Date?
+struct MedLog: Codable, Identifiable {
+    var id: String
+    var familyId: String
+    var planId: String
+    var catId: String
+    var date: String
+    var scheduledTime: String
+    var status: String              // taken | skipped | missed
+    var takenAt: String?
     var note: String?
+    var createdAt: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, status, note
+        case id, date, status, note
         case familyId = "family_id"
         case planId = "plan_id"
         case catId = "cat_id"
-        case date
         case scheduledTime = "scheduled_time"
         case takenAt = "taken_at"
-    }
-
-    init(id: UUID = UUID(), familyId: UUID, planId: UUID?, catId: UUID, date: Date,
-         scheduledTime: String, status: MedLogStatus, takenAt: Date? = nil, note: String? = nil) {
-        self.id = id
-        self.familyId = familyId
-        self.planId = planId
-        self.catId = catId
-        self.date = Calendar.current.startOfDay(for: date)
-        self.scheduledTime = scheduledTime
-        self.status = status
-        self.takenAt = takenAt
-        self.note = note
-    }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(UUID.self, forKey: .id)
-        familyId = try c.decode(UUID.self, forKey: .familyId)
-        planId = try c.decodeIfPresent(UUID.self, forKey: .planId)
-        catId = try c.decode(UUID.self, forKey: .catId)
-        let dayStr = try c.decode(String.self, forKey: .date)
-        date = DateKit.parseDay(dayStr) ?? DateKit.today
-        scheduledTime = try c.decodeIfPresent(String.self, forKey: .scheduledTime) ?? ""
-        status = MedLogStatus(rawValue: try c.decodeIfPresent(String.self, forKey: .status) ?? "") ?? .taken
-        takenAt = try c.decodeIfPresent(String.self, forKey: .takenAt).flatMap(DateKit.parseTimestamp)
-        note = try c.decodeIfPresent(String.self, forKey: .note)
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(id, forKey: .id)
-        try c.encode(familyId, forKey: .familyId)
-        try c.encodeIfPresent(planId, forKey: .planId)
-        try c.encode(catId, forKey: .catId)
-        try c.encode(DateKit.day(date), forKey: .date)
-        try c.encode(scheduledTime, forKey: .scheduledTime)
-        try c.encode(status.rawValue, forKey: .status)
-        try c.encodeIfPresent(takenAt.map(DateKit.timestampString), forKey: .takenAt)
-        try c.encodeIfPresent(note, forKey: .note)
+        case createdAt = "created_at"
     }
 }
 
-// MARK: - SwiftData 本地模型（本地模式专用，与上面结构一一对应）
-
-@Model
-final class LocalCat {
-    @Attribute(.unique) var id: UUID
-    var familyId: UUID
-    var name: String
-    var breed: String?
-    var birthday: Date?
-
-    init(from cat: Cat) {
-        self.id = cat.id
-        self.familyId = cat.familyId
-        self.name = cat.name
-        self.breed = cat.breed
-        self.birthday = cat.birthday
+// ============================================================
+// 通用工具
+// ============================================================
+enum DateKit {
+    static func today() -> String {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: Date())
     }
-
-    func toStruct() -> Cat {
-        Cat(id: id, familyId: familyId, name: name, breed: breed, birthday: birthday)
+    static func date(_ offsetDays: Int) -> String {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: Calendar.current.date(byAdding: .day, value: offsetDays, to: Date())!)
     }
-}
-
-@Model
-final class LocalWeight {
-    @Attribute(.unique) var id: UUID
-    var familyId: UUID
-    var catId: UUID
-    var date: Date
-    var kg: Double
-    var note: String?
-
-    init(from r: WeightRecord) {
-        self.id = r.id
-        self.familyId = r.familyId
-        self.catId = r.catId
-        self.date = r.date
-        self.kg = r.kg
-        self.note = r.note
+    static func parse(_ s: String) -> Date {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
+        return f.date(from: s) ?? Date()
     }
-
-    func toStruct() -> WeightRecord {
-        WeightRecord(id: id, familyId: familyId, catId: catId, date: date, kg: kg, note: note)
+    static func nowISO() -> String {
+        let f = ISO8601DateFormatter()
+        return f.string(from: Date())
     }
-}
-
-@Model
-final class LocalTemp {
-    @Attribute(.unique) var id: UUID
-    var familyId: UUID
-    var catId: UUID
-    var date: Date
-    var celsius: Double
-    var note: String?
-
-    init(from r: TempRecord) {
-        self.id = r.id
-        self.familyId = r.familyId
-        self.catId = r.catId
-        self.date = r.date
-        self.celsius = r.celsius
-        self.note = r.note
+    /// "08:00" → 当日的 Date
+    static func timeToday(_ hm: String) -> Date {
+        let parts = hm.split(separator: ":").compactMap { Int($0) }
+        var c = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        c.hour = parts.count > 0 ? parts[0] : 0
+        c.minute = parts.count > 1 ? parts[1] : 0
+        return Calendar.current.date(from: c) ?? Date()
     }
-
-    func toStruct() -> TempRecord {
-        TempRecord(id: id, familyId: familyId, catId: catId, date: date, celsius: celsius, note: note)
+    /// 用药时间 - 提前量 = 实际提醒时间（跨天取模 1440）
+    static func remindTime(of hm: String, before: Int) -> (hour: Int, minute: Int) {
+        let parts = hm.split(separator: ":").compactMap { Int($0) }
+        let total = (parts.count > 0 ? parts[0] : 0) * 60 + (parts.count > 1 ? parts[1] : 0)
+        let t = ((total - before) % 1440 + 1440) % 1440
+        return (t / 60, t % 60)
     }
-}
-
-@Model
-final class LocalMedPlan {
-    @Attribute(.unique) var id: UUID
-    var familyId: UUID
-    var catId: UUID
-    var drug: String
-    var dose: String
-    var remindTimes: [String]
-    var startDate: Date
-    var endDate: Date?
-    var active: Bool
-    var note: String?
-
-    init(from p: MedPlan) {
-        self.id = p.id
-        self.familyId = p.familyId
-        self.catId = p.catId
-        self.drug = p.drug
-        self.dose = p.dose
-        self.remindTimes = p.remindTimes
-        self.startDate = p.startDate
-        self.endDate = p.endDate
-        self.active = p.active
-        self.note = p.note
+    /// 判断某计划在某天是否该服药（与网页 isDoseDay 逻辑一致）
+    static func isDoseDay(_ plan: MedPlan, on dateStr: String) -> Bool {
+        let ft = plan.freqType ?? "daily"
+        let date = parse(dateStr)
+        if ft == "weekly" {
+            let wd = Calendar.current.component(.weekday, from: date) - 1 // 0=周日
+            return (plan.weekdays ?? []).contains(wd)
+        }
+        if ft == "interval" {
+            let n = plan.intervalDays ?? 1
+            let start = parse(plan.startDate)
+            let diff = Calendar.current.dateComponents([.day], from: start, to: date).day ?? 0
+            return diff >= 0 && diff % max(n, 1) == 0
+        }
+        return true
     }
-
-    func toStruct() -> MedPlan {
-        MedPlan(id: id, familyId: familyId, catId: catId, drug: drug, dose: dose,
-                remindTimes: remindTimes, startDate: startDate, endDate: endDate, active: active, note: note)
+    /// 频次展示文案
+    static func freqText(_ plan: MedPlan) -> String {
+        let ft = plan.freqType ?? "daily"
+        let names = ["日", "一", "二", "三", "四", "五", "六"]
+        if ft == "weekly" {
+            let days = (plan.weekdays ?? []).sorted { (($0 + 6) % 7) < (($1 + 6) % 7) }
+            return "每周" + days.map { names[$0] }.joined(separator: "、")
+        }
+        if ft == "interval" { return "每\(plan.intervalDays ?? 1)天一次" }
+        return "每天"
     }
-}
-
-@Model
-final class LocalMedLog {
-    @Attribute(.unique) var id: UUID
-    var familyId: UUID
-    var planId: UUID?
-    var catId: UUID
-    var date: Date
-    var scheduledTime: String
-    var statusRaw: String
-    var takenAt: Date?
-    var note: String?
-
-    init(from l: MedLog) {
-        self.id = l.id
-        self.familyId = l.familyId
-        self.planId = l.planId
-        self.catId = l.catId
-        self.date = l.date
-        self.scheduledTime = l.scheduledTime
-        self.statusRaw = l.status.rawValue
-        self.takenAt = l.takenAt
-        self.note = l.note
+    /// 猫咪年龄
+    static func catAge(_ cat: Cat) -> String {
+        guard let b = cat.birthday, !b.isEmpty else { return "" }
+        let birth = parse(b), now = Date()
+        var m = Calendar.current.dateComponents([.month], from: birth, to: now).month ?? 0
+        if Calendar.current.component(.day, from: now) < Calendar.current.component(.day, from: birth) { m -= 1 }
+        if m < 0 { return "" }
+        if m < 12 { return "\(m) 个月" }
+        let y = m / 12, r = m % 12
+        return r > 0 ? "\(y) 岁 \(r) 个月" : "\(y) 岁"
     }
-
-    func toStruct() -> MedLog {
-        MedLog(id: id, familyId: familyId, planId: planId, catId: catId, date: date,
-               scheduledTime: scheduledTime, status: MedLogStatus(rawValue: statusRaw) ?? .taken,
-               takenAt: takenAt, note: note)
+    /// "2026-08-02" → "8月2日"
+    static func fmtMD(_ s: String) -> String {
+        let p = s.split(separator: "-")
+        guard p.count == 3, let m = Int(p[1]), let d = Int(p[2]) else { return s }
+        return "\(m)月\(d)日"
     }
-}
-
-// MARK: - 导出用全量数据包
-
-struct ExportBundle: Codable {
-    var exportedAt: String
-    var familyId: String
-    var cats: [Cat]
-    var weights: [WeightRecord]
-    var temps: [TempRecord]
-    var medPlans: [MedPlan]
-    var medLogs: [MedLog]
-
-    enum CodingKeys: String, CodingKey {
-        case cats, weights, temps
-        case exportedAt = "exported_at"
-        case familyId = "family_id"
-        case medPlans = "med_plans"
-        case medLogs = "med_logs"
+    /// ISO 时间 → "8月2日 08:15"
+    static func fmtISO(_ s: String) -> String {
+        let f = ISO8601DateFormatter()
+        guard let d = f.date(from: s) else { return "" }
+        let df = DateFormatter(); df.dateFormat = "M月d日 HH:mm"
+        return df.string(from: d)
     }
 }
