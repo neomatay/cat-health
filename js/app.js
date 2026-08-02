@@ -535,8 +535,7 @@ createApp({
       errors.drug = '';
       modal.addPlan = true;
     }
-    function openEditPlan(item) {
-      var p = item.plan;
+    function openEditPlan(p) {
       editingPlanId.value = p.id;
       planForm.cat_id = p.cat_id;
       planForm.drug = p.drug;

@@ -1,0 +1,139 @@
+{
+  "" : {
+    "diagnostics" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/CatHealth-primary.dia",
+    "emit-module-dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/CatHealth-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/CatHealth-primary-emit-module.dia",
+    "pch" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/CatHealth-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/CatHealth-primary.swiftdeps"
+  },
+  "/Users/cuiyinuo/cat-health/ios/App/CatHealth/CatHealthApp.swift" : {
+    "const-values" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/CatHealthApp.swiftconstvalues",
+    "dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/CatHealthApp.d",
+    "diagnostics" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/CatHealthApp.dia",
+    "index-unit-output-path" : "/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/CatHealthApp.o",
+    "llvm-bc" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/CatHealthApp.bc",
+    "object" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/CatHealthApp.o",
+    "swift-dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/CatHealthApp.swiftdeps",
+    "swiftmodule" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/CatHealthApp~partial.swiftmodule"
+  },
+  "/Users/cuiyinuo/cat-health/ios/App/CatHealth/Config.swift" : {
+    "const-values" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Config.swiftconstvalues",
+    "dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Config.d",
+    "diagnostics" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Config.dia",
+    "index-unit-output-path" : "/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Config.o",
+    "llvm-bc" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Config.bc",
+    "object" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Config.o",
+    "swift-dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Config.swiftdeps",
+    "swiftmodule" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Config~partial.swiftmodule"
+  },
+  "/Users/cuiyinuo/cat-health/ios/App/CatHealth/DataStore.swift" : {
+    "const-values" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/DataStore.swiftconstvalues",
+    "dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/DataStore.d",
+    "diagnostics" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/DataStore.dia",
+    "index-unit-output-path" : "/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/DataStore.o",
+    "llvm-bc" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/DataStore.bc",
+    "object" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/DataStore.o",
+    "swift-dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/DataStore.swiftdeps",
+    "swiftmodule" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/DataStore~partial.swiftmodule"
+  },
+  "/Users/cuiyinuo/cat-health/ios/App/CatHealth/FamilyView.swift" : {
+    "const-values" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/FamilyView.swiftconstvalues",
+    "dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/FamilyView.d",
+    "diagnostics" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/FamilyView.dia",
+    "index-unit-output-path" : "/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/FamilyView.o",
+    "llvm-bc" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/FamilyView.bc",
+    "object" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/FamilyView.o",
+    "swift-dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/FamilyView.swiftdeps",
+    "swiftmodule" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/FamilyView~partial.swiftmodule"
+  },
+  "/Users/cuiyinuo/cat-health/ios/App/CatHealth/HomeView.swift" : {
+    "const-values" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/HomeView.swiftconstvalues",
+    "dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/HomeView.d",
+    "diagnostics" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/HomeView.dia",
+    "index-unit-output-path" : "/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/HomeView.o",
+    "llvm-bc" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/HomeView.bc",
+    "object" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/HomeView.o",
+    "swift-dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/HomeView.swiftdeps",
+    "swiftmodule" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/HomeView~partial.swiftmodule"
+  },
+  "/Users/cuiyinuo/cat-health/ios/App/CatHealth/MedsView.swift" : {
+    "const-values" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/MedsView.swiftconstvalues",
+    "dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/MedsView.d",
+    "diagnostics" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/MedsView.dia",
+    "index-unit-output-path" : "/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/MedsView.o",
+    "llvm-bc" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/MedsView.bc",
+    "object" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/MedsView.o",
+    "swift-dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/MedsView.swiftdeps",
+    "swiftmodule" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/MedsView~partial.swiftmodule"
+  },
+  "/Users/cuiyinuo/cat-health/ios/App/CatHealth/Models.swift" : {
+    "const-values" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Models.swiftconstvalues",
+    "dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Models.d",
+    "diagnostics" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Models.dia",
+    "index-unit-output-path" : "/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Models.o",
+    "llvm-bc" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Models.bc",
+    "object" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Models.o",
+    "swift-dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Models.swiftdeps",
+    "swiftmodule" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Models~partial.swiftmodule"
+  },
+  "/Users/cuiyinuo/cat-health/ios/App/CatHealth/NotificationManager.swift" : {
+    "const-values" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/NotificationManager.swiftconstvalues",
+    "dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/NotificationManager.d",
+    "diagnostics" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/NotificationManager.dia",
+    "index-unit-output-path" : "/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/NotificationManager.o",
+    "llvm-bc" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/NotificationManager.bc",
+    "object" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/NotificationManager.o",
+    "swift-dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/NotificationManager.swiftdeps",
+    "swiftmodule" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/NotificationManager~partial.swiftmodule"
+  },
+  "/Users/cuiyinuo/cat-health/ios/App/CatHealth/Sheets.swift" : {
+    "const-values" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Sheets.swiftconstvalues",
+    "dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Sheets.d",
+    "diagnostics" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Sheets.dia",
+    "index-unit-output-path" : "/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Sheets.o",
+    "llvm-bc" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Sheets.bc",
+    "object" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Sheets.o",
+    "swift-dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Sheets.swiftdeps",
+    "swiftmodule" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Sheets~partial.swiftmodule"
+  },
+  "/Users/cuiyinuo/cat-health/ios/App/CatHealth/SupabaseService.swift" : {
+    "const-values" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/SupabaseService.swiftconstvalues",
+    "dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/SupabaseService.d",
+    "diagnostics" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/SupabaseService.dia",
+    "index-unit-output-path" : "/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/SupabaseService.o",
+    "llvm-bc" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/SupabaseService.bc",
+    "object" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/SupabaseService.o",
+    "swift-dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/SupabaseService.swiftdeps",
+    "swiftmodule" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/SupabaseService~partial.swiftmodule"
+  },
+  "/Users/cuiyinuo/cat-health/ios/App/CatHealth/Theme.swift" : {
+    "const-values" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Theme.swiftconstvalues",
+    "dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Theme.d",
+    "diagnostics" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Theme.dia",
+    "index-unit-output-path" : "/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Theme.o",
+    "llvm-bc" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Theme.bc",
+    "object" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Theme.o",
+    "swift-dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Theme.swiftdeps",
+    "swiftmodule" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/Theme~partial.swiftmodule"
+  },
+  "/Users/cuiyinuo/cat-health/ios/App/CatHealth/TrendsView.swift" : {
+    "const-values" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/TrendsView.swiftconstvalues",
+    "dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/TrendsView.d",
+    "diagnostics" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/TrendsView.dia",
+    "index-unit-output-path" : "/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/TrendsView.o",
+    "llvm-bc" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/TrendsView.bc",
+    "object" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/TrendsView.o",
+    "swift-dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/TrendsView.swiftdeps",
+    "swiftmodule" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/TrendsView~partial.swiftmodule"
+  },
+  "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "const-values" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftconstvalues",
+    "dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/GeneratedAssetSymbols.d",
+    "diagnostics" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/GeneratedAssetSymbols.dia",
+    "index-unit-output-path" : "/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/GeneratedAssetSymbols.bc",
+    "object" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "swift-dependencies" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftdeps",
+    "swiftmodule" : "/Users/cuiyinuo/cat-health/ios/App/build/Build/Intermediates.noindex/CatHealth.build/Debug-iphoneos/CatHealth.build/Objects-normal/arm64/GeneratedAssetSymbols~partial.swiftmodule"
+  }
+}

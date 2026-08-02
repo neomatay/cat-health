@@ -13,6 +13,7 @@ struct CatHealthApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(store)
+                .preferredColorScheme(.light)
                 .task { await store.loadCats() }
                 .onAppear { NotificationManager.shared.requestAuth() }
                 .onChange(of: scenePhase) { _, newPhase in
@@ -38,7 +39,10 @@ struct RootView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             if familyId == nil {
-                FamilySetupView(onDone: { fid in familyId = fid })
+                FamilySetupView(onDone: { fid in
+                    familyId = fid
+                    Task { await store.loadCats() }
+                })
             } else {
                 MainTabView()
             }
@@ -112,53 +116,100 @@ struct FamilySetupView: View {
     @State private var joinError = ""
 
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
-            Image(systemName: "pawprint.fill")
-                .font(.system(size: 52))
-                .foregroundStyle(Color.appGreen)
-            Text("猫咪健康").font(.largeTitle.bold())
-            Text("创建家庭开始记录，或输入家人分享的家庭码加入")
-                .font(.subheadline).foregroundStyle(Color.appGray)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
+        ScrollView {
+            VStack(spacing: 26) {
+                Spacer(minLength: 46)
 
-            VStack(spacing: 12) {
-                Button {
-                    let fid = Config.ensureFamilyId()
-                    onDone(fid)
-                } label: {
-                    Text("创建家庭")
-                        .font(.headline).foregroundStyle(.white)
-                        .frame(maxWidth: .infinity).frame(height: 46)
-                        .background(Color.appGreen)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                Image(systemName: "pawprint.fill")
+                    .font(.system(size: 54, weight: .semibold))
+                    .foregroundStyle(Color.appGreen)
+
+                VStack(spacing: 9) {
+                    Text("猫爪健康屋")
+                        .font(.system(size: 30, weight: .bold))
+                        .foregroundStyle(Color.appGreenDark)
+                    Text("记录体重和体温，用药不忘记；家人也能一起照顾毛孩子")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.appGray)
+                        .multilineTextAlignment(.center)
                 }
 
-                HStack {
-                    TextField("粘贴家庭码加入", text: $code)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .font(.system(.body, design: .monospaced))
-                        .padding(11)
-                        .background(Color.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 9))
-                        .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color.appLine, lineWidth: 1))
-                    Button("加入") { join() }
-                        .disabled(code.trimmingCharacters(in: .whitespaces).isEmpty || busy)
+                VStack(spacing: 14) {
+                    HStack(spacing: 18) {
+                        SetupFeature(icon: "scalemass.fill", title: "体重体温")
+                        SetupFeature(icon: "pills.fill", title: "用药提醒")
+                    }
+                    HStack(spacing: 18) {
+                        SetupFeature(icon: "chart.line.uptrend.xyaxis", title: "健康趋势")
+                        SetupFeature(icon: "person.2.fill", title: "家人同步")
+                    }
                 }
-                if !joinError.isEmpty {
-                    Text(joinError).font(.caption).foregroundStyle(Color.missText)
+
+                VStack(alignment: .leading, spacing: 11) {
+                    Text("第一次使用")
+                        .font(.headline)
+                        .foregroundStyle(Color.appGreenDark)
+                    Text("建立一个只属于你家的健康记录")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.appGray)
+                    Button {
+                        onDone(Config.ensureFamilyId())
+                    } label: {
+                        Label("创建我的家庭", systemImage: "plus.circle.fill")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 50)
+                            .background(Color.appGreen)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 11) {
+                    Text("已有家庭码")
+                        .font(.headline)
+                        .foregroundStyle(Color.appGreenDark)
+                    Text("从网页或另一台设备的“家庭”页复制 36 位家庭码")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.appGray)
+
+                    HStack(spacing: 10) {
+                        TextField("粘贴家庭码", text: $code)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .keyboardType(.asciiCapable)
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundStyle(Color.appGreenDark)
+                            .padding(12)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 9))
+                            .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color.appLine, lineWidth: 1))
+                            .onSubmit { join() }
+
+                        Button("加入") { join() }
+                            .font(.headline)
+                            .disabled(code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || busy)
+                    }
+
+                    if !joinError.isEmpty {
+                        Label(joinError, systemImage: "exclamationmark.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(Color.missText)
+                    }
                 }
             }
-            .padding(.horizontal, 32)
-            Spacer()
+            .padding(.horizontal, 28)
+            .padding(.bottom, 34)
         }
         .background(Color.appBg.ignoresSafeArea())
     }
 
     private func join() {
-        let fid = code.trimmingCharacters(in: .whitespaces)
+        let fid = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard UUID(uuidString: fid) != nil else {
+            joinError = "家庭码格式不正确，请粘贴完整的 36 位编号"
+            return
+        }
         busy = true; joinError = ""
         Task {
             do {
@@ -169,10 +220,45 @@ struct FamilySetupView: View {
                     URLQueryItem(name: "limit", value: "1")
                 ])
                 Config.familyId = fid
-                await MainActor.run { onDone(fid) }
+                await MainActor.run {
+                    busy = false
+                    onDone(fid)
+                }
             } catch {
-                await MainActor.run { joinError = "加入失败，请检查家庭码和网络"; busy = false }
+                await MainActor.run {
+                    joinError = errorMessage(for: error)
+                    busy = false
+                }
             }
         }
+    }
+
+    private func errorMessage(for error: Error) -> String {
+        if let supaError = error as? SupaError {
+            switch supaError {
+            case .badURL:
+                return "云端地址配置有误"
+            case .notConfigured:
+                return "云端服务尚未配置"
+            case .http(let status, _):
+                return "云端返回错误（HTTP \(status)），请确认家庭码和数据库状态"
+            }
+        }
+        if let urlError = error as? URLError {
+            return urlError.code == .notConnectedToInternet ? "设备当前没有可用网络" : "无法连接云端，请稍后再试"
+        }
+        return "读取家庭资料失败，请稍后再试"
+    }
+}
+
+private struct SetupFeature: View {
+    let icon: String
+    let title: String
+
+    var body: some View {
+        Label(title, systemImage: icon)
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(Color.appGreenDark)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
