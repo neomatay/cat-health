@@ -439,9 +439,10 @@ createApp({
     // ========== 家庭同步 ==========
     function getFamilyId() { return CatStore.getFamilyId(); }
     var isSync = computed(function () { return CatStore.isSyncMode(); });
+    var hasSupabase = computed(function () { return CatStore.hasSupabase && CatStore.hasSupabase(); });
 
     async function createFamily() {
-      if (!isSync.value) { showToast('请先配置 Supabase'); return; }
+      if (!hasSupabase.value) { showToast('请先在 config.js 中配置 Supabase'); return; }
       loading.value = true;
       try {
         var fid = await CatStore.createFamily();
@@ -456,6 +457,7 @@ createApp({
 
     async function doJoinFamily() {
       if (!joinCode.value.trim()) { showToast('请输入家庭码'); return; }
+      if (!hasSupabase.value) { showToast('请先在 config.js 中配置 Supabase'); return; }
       loading.value = true;
       try {
         await CatStore.joinFamily(joinCode.value.trim());

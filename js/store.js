@@ -7,6 +7,7 @@
 
   var CFG = window.CAT_HEALTH_CONFIG || {};
   var LS_FAMILY = 'cat_health_family_id';
+  var LS_SYNC = 'cat_health_sync_on';
   var LS_PREFIX = 'cat_health_';
   var supa = null;
 
@@ -21,7 +22,9 @@
     return supa;
   }
 
-  function isSyncMode() { return !!supa; }
+  // 同步模式 = 已配置 Supabase 且已有家庭码（创建/加入家庭后才启用云端）
+  // 否则走本地模式，避免 family_id 为 null 写入云端被非空约束拒绝
+  function isSyncMode() { return !!supa && !!getFamilyId() && getSyncOn(); }
 
   // ---- UUID ----
   function uuid() {
@@ -47,6 +50,11 @@
   function getFamilyId() { return localStorage.getItem(LS_FAMILY) || null; }
   function setFamilyId(id) { localStorage.setItem(LS_FAMILY, id); }
   function clearFamilyId() { localStorage.removeItem(LS_FAMILY); }
+
+  // 同步开关：只有用户显式"创建家庭"/"加入家庭"后才置位，
+  // 避免配了 Supabase 但没家庭时误把 family_id=null 写入云端被非空约束拒绝
+  function getSyncOn() { return localStorage.getItem(LS_SYNC) === '1'; }
+  function setSyncOn() { localStorage.setItem(LS_SYNC, '1'); }
 
   // 确保有 family_id（本地模式下首次使用自动生成）
   function ensureFamilyId() {
@@ -87,6 +95,7 @@
   var Store = {
     uuid: uuid,
     isSyncMode: isSyncMode,
+    hasSupabase: function () { return !!supa; },
     getFamilyId: getFamilyId,
     setFamilyId: setFamilyId,
     clearFamilyId: clearFamilyId,
@@ -264,6 +273,7 @@
 
       return uploadData(localData).then(function () {
         setFamilyId(fid);
+        setSyncOn();
         // 清空本地缓存（切换到云端）
         clearLocalTables();
         return fid;
@@ -276,6 +286,7 @@
         if (r.error) throw r.error;
         // 设置 family_id，清空本地，拉取远端到本地缓存
         setFamilyId(code);
+        setSyncOn();
         clearLocalTables();
         return pullAllToLocal(code).then(function () { return code; });
       });
@@ -360,8 +371,8 @@
 
   // 初始化
   initSupabase();
-  // 本地模式下确保有 family_id
-  if (!isSyncMode()) ensureFamilyId();
+  // 确保本地始终有 family_id（本地记录用；是否上云由同步开关决定）
+  ensureFamilyId();
 
   window.CatStore = Store;
 })();
