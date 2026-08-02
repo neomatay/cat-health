@@ -550,19 +550,32 @@ createApp({
       var valKey = isWeight ? 'kg' : 'celsius';
       var dates = data.map(function (r) { return r.date; });
       var vals = data.map(function (r) { return parseFloat(r[valKey]); });
+      // 最新值（默认定位点）放大标红，进页面即聚焦
+      var lastIdx = vals.length - 1;
+      var seriesData = vals.map(function (v, i) {
+        if (i === lastIdx) return { value: v, symbolSize: 10, itemStyle: { color: '#ff3b30', borderColor: '#fff', borderWidth: 2 } };
+        return v;
+      });
 
       var series = {
-        name: isWeight ? '体重' : '体温', type: 'line', data: vals, smooth: true,
+        name: isWeight ? '体重' : '体温', type: 'line', data: seriesData, smooth: true,
         symbol: 'circle', symbolSize: 6, lineStyle: { width: 2, color: isWeight ? '#ff7a7a' : '#007aff' },
         itemStyle: { color: isWeight ? '#ff7a7a' : '#007aff' },
         areaStyle: { color: isWeight ? 'rgba(255,122,122,0.1)' : 'rgba(0,122,255,0.1)' }
       };
       var option = {
-        grid: { left: 45, right: 16, top: 20, bottom: 30 },
+        grid: { left: 48, right: 20, top: 32, bottom: 34 },
         tooltip: { trigger: 'axis', formatter: function (p) { return p[0].name + '<br/>' + p[0].value + ' ' + unit; } },
-        xAxis: { type: 'category', data: dates, axisLabel: { fontSize: 10, formatter: function (v) { var p = v.split('-'); return p[1] + '/' + p[2]; } } },
+        xAxis: {
+          type: 'category', data: dates,
+          name: '日期', nameLocation: 'middle', nameGap: 24,
+          nameTextStyle: { fontSize: 11, color: '#8e8e93' },
+          axisLabel: { fontSize: 10, formatter: function (v) { var p = v.split('-'); return p[1] + '/' + p[2]; } }
+        },
         yAxis: {
           type: 'value', scale: true, splitNumber: 4,
+          name: isWeight ? '体重 (kg)' : '体温 (°C)',
+          nameTextStyle: { fontSize: 11, color: '#8e8e93', align: 'left' },
           axisLabel: { fontSize: 11 },
           // 纵轴按数据范围留足余量：体重 ±0.3kg、体温 ±0.5°C，
           // 0.1kg 级的日常波动在图上只是小起伏，不会显得"剧烈波动"
@@ -583,6 +596,10 @@ createApp({
         };
       }
       chartInstance.setOption(option, true);
+      // 进入趋势页默认聚焦最新（当天）的值：自动弹出该点提示
+      if (vals.length) {
+        chartInstance.dispatchAction({ type: 'showTip', seriesIndex: 0, dataIndex: lastIdx });
+      }
     }
 
     // 趋势统计卡
