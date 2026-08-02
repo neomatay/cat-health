@@ -46,7 +46,7 @@ createApp({
     // ========== 弹层状态 ==========
     var modal = reactive({
       addCat: false, editCat: false,
-      addWeight: false, addTemp: false, quickRecord: false,
+      addWeight: false, addTemp: false, quickRecord: false, reminders: false,
       addPlan: false, editPlan: false,
       joinFamily: false, importData: false
     });
@@ -167,6 +167,19 @@ createApp({
       return r ? y + ' 岁 ' + r + ' 个月' : y + ' 岁';
     }
     function editCurrentCat() { if (currentCat.value) openEditCat(currentCat.value); }
+    // 任务实际提醒时间 = 用药时间 - 提前量（铃铛提醒中心用）
+    function remindTimeOf(t) {
+      var before = parseInt(t.plan.remind_before) || 0;
+      if (!before) return t.time;
+      var p = t.time.split(':');
+      var mins = parseInt(p[0]) * 60 + parseInt(p[1]) - before;
+      if (mins < 0) mins += 1440;
+      return pad(Math.floor(mins / 60)) + ':' + pad(mins % 60);
+    }
+    // 进行中的计划（提醒中心-日历入口用）
+    var activePlans = computed(function () {
+      return planList.value.filter(function (item) { return item.ongoing; });
+    });
     // FAB 快捷记录：选择体重或体温
     function openQuickRecord() {
       if (!currentCatId.value) { showToast('请先添加猫咪'); return; }
@@ -835,7 +848,7 @@ createApp({
       // v2.0 首页总览
       greeting, todayLabel, latestWeight, latestTemp, weightDelta, tempStatus,
       doseDone, doseTotal, nextDose, careTip, trendRecords,
-      iconSvg, catAge, editCurrentCat, openQuickRecord, pickRecordType,
+      iconSvg, catAge, editCurrentCat, openQuickRecord, pickRecordType, remindTimeOf, activePlans,
       switchTab, switchCat, showToast,
       markTaken, markSkipped,
       openAddWeight, openAddTemp, saveWeight, saveTemp, openEditRecord, deleteWeightRecord, deleteTempRecord,

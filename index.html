@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="icon.svg" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <title>猫咪健康</title>
-  <link rel="stylesheet" href="css/style.css?v=2.0" />
+  <link rel="stylesheet" href="css/style.css?v=2.1" />
   <style>[v-cloak] { display: none; }</style>
 </head>
 <body>
@@ -37,16 +37,18 @@
         <div v-for="c in cats" :key="c.id" class="cat-menu-item" :class="{active: c.id===currentCatId}"
              @click="switchCat(c.id); showCatMenu=false">
           <span class="cat-avatar xs"><img v-if="c.avatar" :src="c.avatar" alt=""><span v-else class="cat-avatar-fallback">🐱</span></span>
-          {{ c.name }}
+          <span style="flex:1">{{ c.name }}</span>
+          <span class="menu-edit" title="编辑档案" @click.stop="showCatMenu=false; openEditCat(c)" v-html="iconSvg('edit',14)"></span>
         </div>
         <div class="cat-menu-item add" @click="showCatMenu=false; openAddCat()">＋ 添加猫咪</div>
       </div>
     </div>
     <div class="topbar-actions">
-      <button class="icon-button" type="button" aria-label="用药提醒说明"
-              @click="showToast('在用药计划中「生成提醒日历」，系统日历会按时提醒你')"
-              v-html="iconSvg('bell',19)"></button>
-      <button class="icon-button" type="button" aria-label="家庭与设置" @click="switchTab('me')" v-html="iconSvg('more',19)"></button>
+      <button class="icon-button bell-btn" type="button" aria-label="今日提醒"
+              @click="modal.reminders=true">
+        <span v-html="iconSvg('bell',19)"></span>
+        <span v-if="todayPending" class="bell-dot"></span>
+      </button>
     </div>
   </header>
 
@@ -355,7 +357,7 @@
       <!-- 关于 -->
       <section class="section-block">
         <div class="section-header"><h2>关于</h2></div>
-        <div class="about-note">猫咪健康 PWA v2.0<br>数据存储于你的设备与家庭云端，不上传任何第三方。</div>
+        <div class="about-note">猫咪健康 PWA v2.1<br>数据存储于你的设备与家庭云端，不上传任何第三方。</div>
       </section>
     </div>
   </main>
@@ -368,6 +370,65 @@
     <button type="button" :class="{'nav-active': activeTab==='meds'}" @click="switchTab('meds')"><span v-html="iconSvg('pill',20)"></span><span>用药</span></button>
     <button type="button" :class="{'nav-active': activeTab==='me'}" @click="switchTab('me')"><span v-html="iconSvg('users',20)"></span><span>家庭</span></button>
   </nav>
+
+  <!-- ==================== 弹层：今日提醒（铃铛） ==================== -->
+  <div class="modal-overlay" v-if="modal.reminders" @click.self="modal.reminders=false">
+    <div class="modal-sheet">
+      <div class="sheet-grabber"></div>
+      <div class="modal-header">
+        <div><h2 class="modal-title">今日提醒</h2><p class="modal-sub">{{ todayLabel }}</p></div>
+        <button class="modal-close" @click="modal.reminders=false">&times;</button>
+      </div>
+
+      <!-- 用药提醒 -->
+      <div class="section-block" style="margin-top:0">
+        <div class="section-header">
+          <h2>用药提醒</h2>
+          <span class="count-label">{{ todayPending }} 项待办</span>
+        </div>
+        <div class="dose-list" v-if="todayTasks.length">
+          <div v-for="(t, i) in todayTasks" :key="i" class="dose-card">
+            <div class="dose-card-main">
+              <span class="dose-time">{{ remindTimeOf(t) }}</span>
+              <div>
+                <h3>{{ t.plan.drug }}</h3>
+                <p>用药 {{ t.time }}<template v-if="t.plan.dose"> · {{ t.plan.dose }}</template>{{ t.plan.remind_before ? ' · 提前' + t.plan.remind_before + '分钟提醒' : ' · 准时提醒' }}</p>
+              </div>
+              <span class="status" :class="t.status==='taken' ? 'done' : (t.status==='skipped' ? 'missed' : 'pending')">
+                {{ t.status==='taken' ? '已喂' : (t.status==='skipped' ? '已跳过' : (t.status==='overdue' ? '已错过' : '待喂')) }}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div v-else class="empty-block small"><p>今天没有用药提醒</p></div>
+      </div>
+
+      <!-- 健康提示 -->
+      <div class="section-block" v-if="careTip">
+        <div class="section-header"><h2>健康提示</h2></div>
+        <div class="care-tip" style="margin-top:0">
+          <span v-html="iconSvg('feather',20)"></span><p>{{ careTip }}</p>
+        </div>
+      </div>
+
+      <!-- 系统日历提醒 -->
+      <div class="section-block">
+        <div class="section-header"><h2>系统日历提醒</h2></div>
+        <div class="info-note mb-16">为计划生成 .ics 日历文件，添加到 iOS 日历后，系统会按用药时间（含提前量）准时提醒。</div>
+        <div class="record-list" v-if="activePlans.length">
+          <div v-for="(item, i) in activePlans" :key="i" class="record-item" @click="generateICS(item)">
+            <span class="plan-icon" v-html="iconSvg('pill',17)"></span>
+            <div>
+              <strong>{{ item.plan.drug }}</strong>
+              <p>{{ freqText(item.plan) }} · 用药 {{ (item.plan.remind_times||[]).join('、') }}</p>
+            </div>
+            <span class="ic-gray" v-html="iconSvg('calendar',17)"></span>
+          </div>
+        </div>
+        <div v-else class="empty-block small"><p>暂无进行中的用药计划</p></div>
+      </div>
+    </div>
+  </div>
 
   <!-- ==================== 弹层：快捷记录（FAB） ==================== -->
   <div class="modal-overlay" v-if="modal.quickRecord" @click.self="modal.quickRecord=false">
@@ -639,8 +700,8 @@
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 应用脚本 -->
-<script src="js/config.js?v=2.0"></script>
-<script src="js/store.js?v=2.0"></script>
-<script src="js/app.js?v=2.0"></script>
+<script src="js/config.js?v=2.1"></script>
+<script src="js/store.js?v=2.1"></script>
+<script src="js/app.js?v=2.1"></script>
 </body>
 </html>
