@@ -407,3 +407,8 @@ h2 { margin-bottom: 0; font-size: 17px; line-height: 23px; }
 }
 .menu-edit { color: #8e9b94; padding: 4px; display: inline-flex; border-radius: 6px; }
 .menu-edit:active { background: #e7ece8; }
+
+/* ========== v2.2 历史计划折叠 ========== */
+.history-header { cursor: pointer; user-select: none; }
+.history-chevron { transition: transform .2s ease; display: inline-flex; }
+.history-chevron.open { transform: rotate(90deg); }

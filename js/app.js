@@ -588,6 +588,15 @@ createApp({
       } catch (e) { console.error(e); showToast('保存失败'); }
     }
 
+    // 进行中 / 历史计划拆分（历史=已停用或已结束，可折叠查看）
+    var ongoingPlans = computed(function () {
+      return planList.value.filter(function (item) { return item.ongoing; });
+    });
+    var historyPlans = computed(function () {
+      return planList.value.filter(function (item) { return !item.ongoing; });
+    });
+    var showHistory = ref(false);
+
     async function stopPlan(item) {
       if (!confirm('确定停用「' + item.plan.drug + '」？')) return;
       try {
@@ -595,6 +604,28 @@ createApp({
         await loadCatData(currentCatId.value);
         showToast('已停用');
       } catch (e) { showToast('操作失败'); }
+    }
+
+    // 删除计划（连打卡记录一起清，不可恢复）
+    async function deletePlan(item) {
+      if (!confirm('确定删除「' + item.plan.drug + '」？\n该计划及其打卡记录将一并删除，不可恢复。')) return;
+      try {
+        await CatStore.deleteMedPlan(item.plan.id);
+        await loadCatData(currentCatId.value);
+        showToast('已删除');
+      } catch (e) { console.error(e); showToast('删除失败'); }
+    }
+    // 编辑弹层中删除当前计划
+    async function deletePlanFromModal() {
+      if (!editingPlanId.value) return;
+      var plan = plans.value.find(function (p) { return p.id === editingPlanId.value; });
+      if (!confirm('确定删除「' + (plan ? plan.drug : '该计划') + '」？\n该计划及其打卡记录将一并删除，不可恢复。')) return;
+      try {
+        await CatStore.deleteMedPlan(editingPlanId.value);
+        modal.addPlan = false; modal.editPlan = false;
+        await loadCatData(currentCatId.value);
+        showToast('已删除');
+      } catch (e) { console.error(e); showToast('删除失败'); }
     }
 
     // ========== 生成 ICS 提醒日历 ==========
@@ -853,7 +884,8 @@ createApp({
       markTaken, markSkipped,
       openAddWeight, openAddTemp, saveWeight, saveTemp, openEditRecord, deleteWeightRecord, deleteTempRecord,
       openAddCat, openEditCat, saveCat, onAvatarPick, removeAvatar,
-      openAddPlan, openEditPlan, savePlan, addPlanTime, removePlanTime, stopPlan,
+      openAddPlan, openEditPlan, savePlan, addPlanTime, removePlanTime, stopPlan, deletePlan, deletePlanFromModal,
+      ongoingPlans, historyPlans, showHistory,
       generateICS, weekdayOptions, toggleWeekday, freqText, isDoseDay,
       renderChart,
       createFamily, openJoinFamily, doJoinFamily, copyFamilyCode,

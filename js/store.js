@@ -242,6 +242,19 @@
       }
       localUpdate('med_plans', id, patch); return Promise.resolve(patch);
     },
+    // 删除计划（级联删除其打卡记录）
+    deleteMedPlan: function (id) {
+      if (isSyncMode()) {
+        return supa.from('med_logs').delete().eq('plan_id', id).then(function (r1) {
+          if (r1.error) throw r1.error;
+          return supa.from('med_plans').delete().eq('id', id).then(function (r2) { if (r2.error) throw r2.error; });
+        });
+      }
+      var logs = lsGetArr('med_logs').filter(function (l) { return l.plan_id !== id; });
+      lsSaveArr('med_logs', logs);
+      localDelete('med_plans', id);
+      return Promise.resolve();
+    },
 
     // ---- 用药打卡记录 ----
     getMedLogs: function (opts) {

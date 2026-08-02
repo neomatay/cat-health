@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="icon.svg" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <title>猫咪健康</title>
-  <link rel="stylesheet" href="css/style.css?v=2.1" />
+  <link rel="stylesheet" href="css/style.css?v=2.2" />
   <style>[v-cloak] { display: none; }</style>
 </head>
 <body>
@@ -260,21 +260,21 @@
           <div v-else class="empty-block small"><p>今天没有用药安排</p></div>
         </section>
 
-        <!-- 长期用药计划 -->
+        <!-- 长期用药计划（进行中） -->
         <section class="section-block">
           <div class="section-header">
             <h2>长期用药计划</h2>
             <button class="text-action" type="button" @click="openAddPlan">新增 <span class="ic" v-html="iconSvg('plus',15)"></span></button>
           </div>
-          <div class="record-list" v-if="planList.length">
-            <div v-for="(item, i) in planList" :key="i" class="plan-item" :class="{inactive: !item.plan.active}">
+          <div class="record-list" v-if="ongoingPlans.length">
+            <div v-for="(item, i) in ongoingPlans" :key="i" class="plan-item">
               <span class="plan-icon" v-html="iconSvg('pill',17)"></span>
               <div>
-                <strong>{{ item.plan.drug }}<span v-if="!item.plan.active" class="status missed" style="margin-left:6px">已停用</span></strong>
+                <strong>{{ item.plan.drug }}</strong>
                 <p>{{ item.plan.dose ? item.plan.dose + ' · ' : '' }}{{ freqText(item.plan) }} · 用药 {{ (item.plan.remind_times||[]).join('、') }}<template v-if="item.plan.remind_before"> · 提前{{ item.plan.remind_before }}分钟提醒</template></p>
                 <p class="plan-sub">{{ item.plan.start_date }} ~ {{ item.plan.end_date || '长期' }} · 完药率 {{ item.rate }}%</p>
               </div>
-              <div class="plan-actions" v-if="item.plan.active">
+              <div class="plan-actions">
                 <button class="icon-button sm" type="button" title="生成提醒日历" @click="generateICS(item)" v-html="iconSvg('calendar',16)"></button>
                 <button class="icon-button sm" type="button" title="编辑" @click="openEditPlan(item.plan)" v-html="iconSvg('edit',16)"></button>
                 <button class="icon-button sm danger" type="button" title="停用" @click="stopPlan(item)" v-html="iconSvg('x',16)"></button>
@@ -282,6 +282,28 @@
             </div>
           </div>
           <div v-else class="empty-block small"><p>还没有用药计划，点右上角 + 新增</p></div>
+        </section>
+
+        <!-- 历史用药计划（已停用/已结束，可折叠） -->
+        <section class="section-block" v-if="historyPlans.length">
+          <div class="section-header history-header" @click="showHistory = !showHistory">
+            <h2>历史用药计划 <span class="count-label">{{ historyPlans.length }}</span></h2>
+            <span class="ic-gray history-chevron" :class="{open: showHistory}" v-html="iconSvg('chevron',16)"></span>
+          </div>
+          <div class="record-list" v-show="showHistory">
+            <div v-for="(item, i) in historyPlans" :key="i" class="plan-item inactive">
+              <span class="plan-icon" v-html="iconSvg('pill',17)"></span>
+              <div>
+                <strong>{{ item.plan.drug }}</strong>
+                <p>{{ item.plan.dose ? item.plan.dose + ' · ' : '' }}{{ freqText(item.plan) }} · 用药 {{ (item.plan.remind_times||[]).join('、') }}</p>
+                <p class="plan-sub">{{ item.plan.start_date }} ~ {{ item.plan.end_date || '长期' }} · 完药率 {{ item.rate }}%</p>
+              </div>
+              <div class="plan-actions">
+                <button class="icon-button sm" type="button" title="编辑" @click="openEditPlan(item.plan)" v-html="iconSvg('edit',16)"></button>
+                <button class="icon-button sm danger" type="button" title="删除" @click="deletePlan(item)" v-html="iconSvg('x',16)"></button>
+              </div>
+            </div>
+          </div>
         </section>
       </template>
       <div v-else class="empty-page">
@@ -357,7 +379,7 @@
       <!-- 关于 -->
       <section class="section-block">
         <div class="section-header"><h2>关于</h2></div>
-        <div class="about-note">猫咪健康 PWA v2.1<br>数据存储于你的设备与家庭云端，不上传任何第三方。</div>
+        <div class="about-note">猫咪健康 PWA v2.2<br>数据存储于你的设备与家庭云端，不上传任何第三方。</div>
       </section>
     </div>
   </main>
@@ -642,6 +664,7 @@
       </div>
       <div class="modal-footer">
         <button class="primary-command full" type="button" @click="savePlan(modal.editPlan)"><span v-html="iconSvg('check',17)"></span>保存计划</button>
+        <button class="btn btn-block btn-ghost danger-text" v-if="modal.editPlan" @click="deletePlanFromModal">删除此计划</button>
       </div>
     </div>
   </div>
@@ -700,8 +723,8 @@
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 应用脚本 -->
-<script src="js/config.js?v=2.1"></script>
-<script src="js/store.js?v=2.1"></script>
-<script src="js/app.js?v=2.1"></script>
+<script src="js/config.js?v=2.2"></script>
+<script src="js/store.js?v=2.2"></script>
+<script src="js/app.js?v=2.2"></script>
 </body>
 </html>
