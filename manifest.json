@@ -1,0 +1,20 @@
+{
+  "name": "猫咪健康",
+  "short_name": "猫健康",
+  "description": "猫咪体重、体温、用药日常管理",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f5f7",
+  "theme_color": "#ff7a7a",
+  "orientation": "portrait",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
