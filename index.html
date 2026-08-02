@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="icon.svg" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <title>猫咪健康</title>
-  <link rel="stylesheet" href="css/style.css?v=1.2" />
+  <link rel="stylesheet" href="css/style.css?v=1.3" />
   <style>[v-cloak] { display: none; }</style>
 </head>
 <body>
@@ -184,7 +184,7 @@
             <div>
               <div class="plan-drug">{{ item.plan.drug }}</div>
               <div class="plan-detail" v-if="item.plan.dose">剂量: {{ item.plan.dose }}</div>
-              <div class="plan-detail">时间: {{ (item.plan.remind_times||[]).join('、') }}</div>
+              <div class="plan-detail">{{ freqText(item.plan) }} · {{ (item.plan.remind_times||[]).join('、') }}</div>
               <div class="plan-detail">{{ item.plan.start_date }} ~ {{ item.plan.end_date || '长期' }}</div>
             </div>
             <span class="plan-tag" :class="item.ongoing ? 'ongoing' : 'ended'">{{ item.ongoing ? '进行中' : '已结束' }}</span>
@@ -265,7 +265,7 @@
       <div class="card">
         <div class="card-title">关于</div>
         <div class="info-note">
-          猫咪健康 PWA v1.2<br>
+          猫咪健康 PWA v1.3<br>
           个人家庭猫咪体重、体温、用药日常管理工具。<br>
           数据存储于本地或自建 Supabase，不上传第三方。
         </div>
@@ -417,7 +417,27 @@
         <input class="input" v-model="planForm.dose" placeholder="如：半片 / 0.5ml" />
       </div>
       <div class="field">
-        <label>每天提醒时间</label>
+        <label>频次</label>
+        <div class="seg-control">
+          <button type="button" :class="{active: planForm.freq_type==='daily'}" @click="planForm.freq_type='daily'">每天</button>
+          <button type="button" :class="{active: planForm.freq_type==='weekly'}" @click="planForm.freq_type='weekly'">每周固定</button>
+          <button type="button" :class="{active: planForm.freq_type==='interval'}" @click="planForm.freq_type='interval'">每N天</button>
+        </div>
+        <!-- 每周固定：点选星期几 -->
+        <div v-if="planForm.freq_type==='weekly'" class="weekday-row">
+          <button type="button" v-for="d in weekdayOptions" :key="d.value" class="weekday-chip"
+                  :class="{active: planForm.weekdays.includes(d.value)}" @click="toggleWeekday(d.value)">{{ d.label }}</button>
+        </div>
+        <div class="err-text" v-if="errors.weekdays">{{ errors.weekdays }}</div>
+        <!-- 每N天：间隔天数 -->
+        <div v-if="planForm.freq_type==='interval'" class="flex-row mt-8" style="align-items:center;gap:8px">
+          <span>每</span>
+          <input class="input" type="number" min="2" max="30" v-model="planForm.interval_days" style="width:80px" />
+          <span class="text-secondary text-sm">天一次（每隔{{ (parseInt(planForm.interval_days)||2)-1 }}天，以开始日期为第一次）</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>提醒时间</label>
         <div v-for="(t, idx) in planForm.remind_times" :key="idx" class="time-row">
           <input class="input time-input" type="time" v-model="planForm.remind_times[idx]" />
           <button class="btn btn-sm btn-danger time-del" @click="removePlanTime(idx)" v-if="planForm.remind_times.length>1">删除</button>
@@ -494,8 +514,8 @@
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 应用脚本 -->
-<script src="js/config.js?v=1.2"></script>
-<script src="js/store.js?v=1.2"></script>
-<script src="js/app.js?v=1.2"></script>
+<script src="js/config.js?v=1.3"></script>
+<script src="js/store.js?v=1.3"></script>
+<script src="js/app.js?v=1.3"></script>
 </body>
 </html>

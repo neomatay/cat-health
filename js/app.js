@@ -55,6 +55,7 @@ createApp({
     var tempForm = reactive({ id: null, cat_id: null, date: todayStr(), celsius: '', note: '' });
     var planForm = reactive({
       cat_id: null, drug: '', dose: '', remind_times: ['08:00'],
+      freq_type: 'daily', weekdays: [], interval_days: 2,
       start_date: todayStr(), end_date: '', is_long_term: true, note: ''
     });
     var editingPlanId = ref(null);
@@ -68,6 +69,45 @@ createApp({
     });
     var hasCats = computed(function () { return cats.value.length > 0; });
 
+    // ========== 用药频次 ==========
+    // freq_type: daily 每天 | weekly 每周固定几(weekdays: 0=日 1=一...6=六) | interval 每N天(以start_date为第一次)
+    var WD_NAMES = ['日', '一', '二', '三', '四', '五', '六'];
+    var weekdayOptions = [
+      { value: 1, label: '一' }, { value: 2, label: '二' }, { value: 3, label: '三' },
+      { value: 4, label: '四' }, { value: 5, label: '五' }, { value: 6, label: '六' },
+      { value: 0, label: '日' }
+    ];
+    function toggleWeekday(d) {
+      var i = planForm.weekdays.indexOf(d);
+      if (i >= 0) planForm.weekdays.splice(i, 1); else planForm.weekdays.push(d);
+    }
+    // 判断某天是否该服药
+    function isDoseDay(plan, dateStr) {
+      var ft = plan.freq_type || 'daily';
+      if (ft === 'weekly') {
+        var wd = new Date(dateStr + 'T00:00:00').getDay();
+        return (plan.weekdays || []).indexOf(wd) >= 0;
+      }
+      if (ft === 'interval') {
+        var n = parseInt(plan.interval_days) || 1;
+        var start = new Date(plan.start_date + 'T00:00:00');
+        var cur = new Date(dateStr + 'T00:00:00');
+        var diff = Math.round((cur - start) / 86400000);
+        return diff >= 0 && diff % n === 0;
+      }
+      return true; // daily
+    }
+    // 频次展示文案
+    function freqText(plan) {
+      var ft = plan.freq_type || 'daily';
+      if (ft === 'weekly') {
+        var days = (plan.weekdays || []).slice().sort(function (a, b) { return ((a + 6) % 7) - ((b + 6) % 7); });
+        return '每周' + days.map(function (d) { return WD_NAMES[d]; }).join('、');
+      }
+      if (ft === 'interval') return '每' + (plan.interval_days || 1) + '天一次';
+      return '每天';
+    }
+
     // 今日用药任务
     var todayTasks = computed(function () {
       var today = todayStr();
@@ -75,7 +115,8 @@ createApp({
       var tasks = [];
       var catPlans = plans.value.filter(function (p) {
         return p.cat_id === currentCatId.value && p.active &&
-          p.start_date <= today && (!p.end_date || p.end_date >= today);
+          p.start_date <= today && (!p.end_date || p.end_date >= today) &&
+          isDoseDay(p, today);
       });
       catPlans.forEach(function (plan) {
         (plan.remind_times || []).forEach(function (time) {
@@ -354,6 +395,7 @@ createApp({
       if (!currentCatId.value) return;
       planForm.cat_id = currentCatId.value;
       planForm.drug = ''; planForm.dose = ''; planForm.remind_times = ['08:00'];
+      planForm.freq_type = 'daily'; planForm.weekdays = []; planForm.interval_days = 2;
       planForm.start_date = todayStr(); planForm.end_date = ''; planForm.is_long_term = true; planForm.note = '';
       editingPlanId.value = null;
       errors.drug = '';
@@ -366,6 +408,9 @@ createApp({
       planForm.drug = p.drug; planForm.dose = p.dose || '';
       planForm.remind_times = (p.remind_times || []).slice();
       if (!planForm.remind_times.length) planForm.remind_times = ['08:00'];
+      planForm.freq_type = p.freq_type || 'daily';
+      planForm.weekdays = (p.weekdays || []).slice();
+      planForm.interval_days = p.interval_days || 2;
       planForm.start_date = p.start_date; planForm.end_date = p.end_date || '';
       planForm.is_long_term = !p.end_date; planForm.note = p.note || '';
       errors.drug = '';
@@ -378,11 +423,16 @@ createApp({
 
     async function savePlan(isEdit) {
       if (!planForm.drug.trim()) { errors.drug = '请输入药品名'; return; }
+      if (planForm.freq_type === 'weekly' && !planForm.weekdays.length) { errors.weekdays = '请选择每周哪几天服药'; return; }
+      errors.weekdays = '';
       var payload = {
         cat_id: planForm.cat_id, drug: planForm.drug.trim(), dose: planForm.dose.trim(),
         remind_times: planForm.remind_times.slice(), start_date: planForm.start_date,
         end_date: planForm.is_long_term ? null : (planForm.end_date || null),
-        note: planForm.note.trim(), active: true
+        note: planForm.note.trim(), active: true,
+        freq_type: planForm.freq_type,
+        weekdays: planForm.freq_type === 'weekly' ? planForm.weekdays.slice() : null,
+        interval_days: planForm.freq_type === 'interval' ? Math.min(30, Math.max(2, parseInt(planForm.interval_days) || 2)) : null
       };
       try {
         if (isEdit) { await CatStore.updateMedPlan(editingPlanId.value, payload); showToast('计划已更新'); }
@@ -415,7 +465,17 @@ createApp({
         lines.push('BEGIN:VEVENT');
         lines.push('UID:cathealth-' + plan.id + '-' + idx + '@cat-health');
         lines.push('DTSTART:' + dt);
-        var rrule = 'RRULE:FREQ=DAILY';
+        var rrule;
+        var ft = plan.freq_type || 'daily';
+        if (ft === 'weekly') {
+          var wdMap = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+          var byday = (plan.weekdays || []).map(function (d) { return wdMap[d]; }).join(',');
+          rrule = 'RRULE:FREQ=WEEKLY' + (byday ? ';BYDAY=' + byday : '');
+        } else if (ft === 'interval') {
+          rrule = 'RRULE:FREQ=DAILY;INTERVAL=' + (parseInt(plan.interval_days) || 1);
+        } else {
+          rrule = 'RRULE:FREQ=DAILY';
+        }
         if (plan.end_date) { rrule += ';UNTIL=' + plan.end_date.replace(/-/g, '') + 'T235959'; }
         lines.push(rrule);
         var summary = plan.drug + (plan.dose ? ' ' + plan.dose : '');
@@ -625,7 +685,7 @@ createApp({
       openAddWeight, openAddTemp, saveWeight, saveTemp, openEditRecord, deleteWeightRecord, deleteTempRecord,
       openAddCat, openEditCat, saveCat, onAvatarPick, removeAvatar,
       openAddPlan, openEditPlan, savePlan, addPlanTime, removePlanTime, stopPlan,
-      generateICS,
+      generateICS, weekdayOptions, toggleWeekday, freqText, isDoseDay,
       renderChart,
       createFamily, openJoinFamily, doJoinFamily, copyFamilyCode,
       exportData, openImport, onImportFile, doImport,

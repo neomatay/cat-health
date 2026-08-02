@@ -55,12 +55,20 @@ create table if not exists med_plans (
   drug text not null,
   dose text,
   remind_times text[] not null default '{}',
+  freq_type text default 'daily',   -- daily 每天 | weekly 每周固定 | interval 每N天
+  weekdays int[],                   -- weekly 用：0=周日 1=周一 ... 6=周六
+  interval_days int,                -- interval 用：每 N 天一次（以 start_date 为第一次）
   start_date date not null,
   end_date date,
   active boolean default true,
   note text,
   created_at timestamptz default now()
 );
+
+-- 老库升级（v1.3 新增频次列）：已在使用的库执行下面三行即可
+-- alter table med_plans add column if not exists freq_type text default 'daily';
+-- alter table med_plans add column if not exists weekdays int[];
+-- alter table med_plans add column if not exists interval_days int;
 create index if not exists idx_med_plans_cat on med_plans (cat_id);
 
 -- 用药打卡记录表
