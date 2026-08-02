@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="icon.svg" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <title>猫咪健康</title>
-  <link rel="stylesheet" href="css/style.css?v=2.2" />
+  <link rel="stylesheet" href="css/style.css?v=2.3" />
   <style>[v-cloak] { display: none; }</style>
 </head>
 <body>
@@ -379,7 +379,7 @@
       <!-- 关于 -->
       <section class="section-block">
         <div class="section-header"><h2>关于</h2></div>
-        <div class="about-note">猫咪健康 PWA v2.2<br>数据存储于你的设备与家庭云端，不上传任何第三方。</div>
+        <div class="about-note">猫咪健康 PWA v2.3<br>数据存储于你的设备与家庭云端，不上传任何第三方。</div>
       </section>
     </div>
   </main>
@@ -437,16 +437,22 @@
       <div class="section-block">
         <div class="section-header"><h2>系统日历提醒</h2></div>
         <div class="info-note mb-16">为计划生成 .ics 日历文件，添加到 iOS 日历后，系统会按用药时间（含提前量）准时提醒。</div>
-        <div class="record-list" v-if="activePlans.length">
-          <div v-for="(item, i) in activePlans" :key="i" class="record-item" @click="generateICS(item)">
-            <span class="plan-icon" v-html="iconSvg('pill',17)"></span>
-            <div>
-              <strong>{{ item.plan.drug }}</strong>
-              <p>{{ freqText(item.plan) }} · 用药 {{ (item.plan.remind_times||[]).join('、') }}</p>
-            </div>
-            <span class="ic-gray" v-html="iconSvg('calendar',17)"></span>
+        <template v-if="activePlans.length">
+          <div class="section-header" style="margin-bottom:6px">
+            <h2 style="font-size:14px;color:var(--gray)">进行中的用药计划</h2>
+            <span class="count-label">点击生成日历</span>
           </div>
-        </div>
+          <div class="record-list">
+            <div v-for="(item, i) in activePlans" :key="i" class="record-item" @click="generateICS(item)">
+              <span class="plan-icon" v-html="iconSvg('pill',17)"></span>
+              <div>
+                <strong>{{ item.plan.drug }}</strong>
+                <p>{{ freqText(item.plan) }} · 用药 {{ (item.plan.remind_times||[]).join('、') }}</p>
+              </div>
+              <span class="ic-gray" v-html="iconSvg('calendar',17)"></span>
+            </div>
+          </div>
+        </template>
         <div v-else class="empty-block small"><p>暂无进行中的用药计划</p></div>
       </div>
     </div>
@@ -723,8 +729,8 @@
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 应用脚本 -->
-<script src="js/config.js?v=2.2"></script>
-<script src="js/store.js?v=2.2"></script>
-<script src="js/app.js?v=2.2"></script>
+<script src="js/config.js?v=2.3"></script>
+<script src="js/store.js?v=2.3"></script>
+<script src="js/app.js?v=2.3"></script>
 </body>
 </html>
