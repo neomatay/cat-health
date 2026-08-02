@@ -54,7 +54,7 @@ createApp({
     var weightForm = reactive({ id: null, cat_id: null, date: todayStr(), kg: '', note: '' });
     var tempForm = reactive({ id: null, cat_id: null, date: todayStr(), celsius: '', note: '' });
     var planForm = reactive({
-      cat_id: null, drug: '', dose: '', remind_times: ['08:00'],
+      cat_id: null, drug: '', dose_amount: '', dose_unit: '片', remind_times: ['08:00'],
       freq_type: 'daily', weekdays: [], interval_days: 2,
       start_date: todayStr(), end_date: '', is_long_term: true, note: ''
     });
@@ -68,6 +68,19 @@ createApp({
       return cats.value.find(function (c) { return c.id === currentCatId.value; }) || null;
     });
     var hasCats = computed(function () { return cats.value.length > 0; });
+
+    // 剂量解析：把存量文本（"0.5 片"/"半片"/"250mg"）拆成 数字+单位，拆不出则留空待用户重填
+    function parseDose(dose) {
+      var r = { amount: '', unit: '片' };
+      if (!dose) return r;
+      var s = String(dose).trim().replace(/半/g, '0.5');
+      var m = s.match(/^([\d.]+)\s*(毫克|mg|片|粒)$/i);
+      if (m) {
+        r.amount = m[1];
+        r.unit = /毫克|mg/i.test(m[2]) ? '毫克' : m[2];
+      }
+      return r;
+    }
 
     // ========== 用药频次 ==========
     // freq_type: daily 每天 | weekly 每周固定几(weekdays: 0=日 1=一...6=六) | interval 每N天(以start_date为第一次)
@@ -394,7 +407,7 @@ createApp({
     function openAddPlan() {
       if (!currentCatId.value) return;
       planForm.cat_id = currentCatId.value;
-      planForm.drug = ''; planForm.dose = ''; planForm.remind_times = ['08:00'];
+      planForm.drug = ''; planForm.dose_amount = ''; planForm.dose_unit = '片'; planForm.remind_times = ['08:00'];
       planForm.freq_type = 'daily'; planForm.weekdays = []; planForm.interval_days = 2;
       planForm.start_date = todayStr(); planForm.end_date = ''; planForm.is_long_term = true; planForm.note = '';
       editingPlanId.value = null;
@@ -405,7 +418,9 @@ createApp({
       var p = item.plan;
       editingPlanId.value = p.id;
       planForm.cat_id = p.cat_id;
-      planForm.drug = p.drug; planForm.dose = p.dose || '';
+      planForm.drug = p.drug;
+      var pd = parseDose(p.dose);
+      planForm.dose_amount = pd.amount; planForm.dose_unit = pd.unit;
       planForm.remind_times = (p.remind_times || []).slice();
       if (!planForm.remind_times.length) planForm.remind_times = ['08:00'];
       planForm.freq_type = p.freq_type || 'daily';
@@ -425,8 +440,16 @@ createApp({
       if (!planForm.drug.trim()) { errors.drug = '请输入药品名'; return; }
       if (planForm.freq_type === 'weekly' && !planForm.weekdays.length) { errors.weekdays = '请选择每周哪几天服药'; return; }
       errors.weekdays = '';
+      // 剂量：数字+单位 组合成标准文本（留空则不填剂量）
+      var doseText = '';
+      if (String(planForm.dose_amount).trim() !== '') {
+        var da = parseFloat(planForm.dose_amount);
+        if (isNaN(da) || da <= 0 || da > 9999) { errors.dose = '请输入正确的剂量数字'; return; }
+        doseText = da + ' ' + planForm.dose_unit;
+      }
+      errors.dose = '';
       var payload = {
-        cat_id: planForm.cat_id, drug: planForm.drug.trim(), dose: planForm.dose.trim(),
+        cat_id: planForm.cat_id, drug: planForm.drug.trim(), dose: doseText,
         remind_times: planForm.remind_times.slice(), start_date: planForm.start_date,
         end_date: planForm.is_long_term ? null : (planForm.end_date || null),
         note: planForm.note.trim(), active: true,

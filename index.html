@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="icon.svg" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <title>猫咪健康</title>
-  <link rel="stylesheet" href="css/style.css?v=1.3" />
+  <link rel="stylesheet" href="css/style.css?v=1.4" />
   <style>[v-cloak] { display: none; }</style>
 </head>
 <body>
@@ -265,7 +265,7 @@
       <div class="card">
         <div class="card-title">关于</div>
         <div class="info-note">
-          猫咪健康 PWA v1.3<br>
+          猫咪健康 PWA v1.4<br>
           个人家庭猫咪体重、体温、用药日常管理工具。<br>
           数据存储于本地或自建 Supabase，不上传第三方。
         </div>
@@ -414,7 +414,17 @@
       </div>
       <div class="field">
         <label>剂量</label>
-        <input class="input" v-model="planForm.dose" placeholder="如：半片 / 0.5ml" />
+        <div class="flex-row" style="gap:8px;align-items:center">
+          <input class="input" type="number" step="0.25" min="0" inputmode="decimal" v-model="planForm.dose_amount"
+                 placeholder="数字" style="flex:1" :class="{'input-err': errors.dose}" />
+          <div class="seg-control" style="flex:1.2;margin:0">
+            <button type="button" :class="{active: planForm.dose_unit==='片'}" @click="planForm.dose_unit='片'">片</button>
+            <button type="button" :class="{active: planForm.dose_unit==='粒'}" @click="planForm.dose_unit='粒'">粒</button>
+            <button type="button" :class="{active: planForm.dose_unit==='毫克'}" @click="planForm.dose_unit='毫克'">毫克</button>
+          </div>
+        </div>
+        <div class="err-text" v-if="errors.dose">{{ errors.dose }}</div>
+        <div class="text-secondary text-sm mt-8">如 0.5 片、1 粒、250 毫克；留空表示不填剂量</div>
       </div>
       <div class="field">
         <label>频次</label>
@@ -514,8 +524,8 @@
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 应用脚本 -->
-<script src="js/config.js?v=1.3"></script>
-<script src="js/store.js?v=1.3"></script>
-<script src="js/app.js?v=1.3"></script>
+<script src="js/config.js?v=1.4"></script>
+<script src="js/store.js?v=1.4"></script>
+<script src="js/app.js?v=1.4"></script>
 </body>
 </html>
