@@ -55,7 +55,7 @@ createApp({
     var tempForm = reactive({ id: null, cat_id: null, date: todayStr(), celsius: '', note: '' });
     var planForm = reactive({
       cat_id: null, drug: '', dose_amount: '', dose_unit: '片', remind_times: ['08:00'],
-      freq_type: 'daily', weekdays: [], interval_days: 2,
+      freq_type: 'daily', weekdays: [], interval_days: 2, remind_before: 0,
       start_date: todayStr(), end_date: '', is_long_term: true, note: ''
     });
     var editingPlanId = ref(null);
@@ -408,7 +408,7 @@ createApp({
       if (!currentCatId.value) return;
       planForm.cat_id = currentCatId.value;
       planForm.drug = ''; planForm.dose_amount = ''; planForm.dose_unit = '片'; planForm.remind_times = ['08:00'];
-      planForm.freq_type = 'daily'; planForm.weekdays = []; planForm.interval_days = 2;
+      planForm.freq_type = 'daily'; planForm.weekdays = []; planForm.interval_days = 2; planForm.remind_before = 0;
       planForm.start_date = todayStr(); planForm.end_date = ''; planForm.is_long_term = true; planForm.note = '';
       editingPlanId.value = null;
       errors.drug = '';
@@ -426,6 +426,7 @@ createApp({
       planForm.freq_type = p.freq_type || 'daily';
       planForm.weekdays = (p.weekdays || []).slice();
       planForm.interval_days = p.interval_days || 2;
+      planForm.remind_before = p.remind_before || 0;
       planForm.start_date = p.start_date; planForm.end_date = p.end_date || '';
       planForm.is_long_term = !p.end_date; planForm.note = p.note || '';
       errors.drug = '';
@@ -455,7 +456,8 @@ createApp({
         note: planForm.note.trim(), active: true,
         freq_type: planForm.freq_type,
         weekdays: planForm.freq_type === 'weekly' ? planForm.weekdays.slice() : null,
-        interval_days: planForm.freq_type === 'interval' ? Math.min(30, Math.max(2, parseInt(planForm.interval_days) || 2)) : null
+        interval_days: planForm.freq_type === 'interval' ? Math.min(30, Math.max(2, parseInt(planForm.interval_days) || 2)) : null,
+        remind_before: parseInt(planForm.remind_before) || 0
       };
       try {
         if (isEdit) { await CatStore.updateMedPlan(editingPlanId.value, payload); showToast('计划已更新'); }
@@ -505,7 +507,8 @@ createApp({
         lines.push('SUMMARY:' + icsEscape(summary));
         if (plan.note) lines.push('DESCRIPTION:' + icsEscape(plan.note));
         lines.push('BEGIN:VALARM');
-        lines.push('TRIGGER:-PT0M');
+        // 按计划的提前量提醒：用药时间前 N 分钟触发
+        lines.push('TRIGGER:-PT' + (parseInt(plan.remind_before) || 0) + 'M');
         lines.push('ACTION:DISPLAY');
         lines.push('DESCRIPTION:' + icsEscape('该给猫咪喂 ' + plan.drug + ' 了'));
         lines.push('END:VALARM');

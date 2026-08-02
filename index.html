@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="icon.svg" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <title>猫咪健康</title>
-  <link rel="stylesheet" href="css/style.css?v=1.4" />
+  <link rel="stylesheet" href="css/style.css?v=1.5" />
   <style>[v-cloak] { display: none; }</style>
 </head>
 <body>
@@ -184,7 +184,7 @@
             <div>
               <div class="plan-drug">{{ item.plan.drug }}</div>
               <div class="plan-detail" v-if="item.plan.dose">剂量: {{ item.plan.dose }}</div>
-              <div class="plan-detail">{{ freqText(item.plan) }} · {{ (item.plan.remind_times||[]).join('、') }}</div>
+              <div class="plan-detail">{{ freqText(item.plan) }} · 用药 {{ (item.plan.remind_times||[]).join('、') }}<template v-if="item.plan.remind_before"> · 提前{{ item.plan.remind_before }}分钟提醒</template></div>
               <div class="plan-detail">{{ item.plan.start_date }} ~ {{ item.plan.end_date || '长期' }}</div>
             </div>
             <span class="plan-tag" :class="item.ongoing ? 'ongoing' : 'ended'">{{ item.ongoing ? '进行中' : '已结束' }}</span>
@@ -265,7 +265,7 @@
       <div class="card">
         <div class="card-title">关于</div>
         <div class="info-note">
-          猫咪健康 PWA v1.4<br>
+          猫咪健康 PWA v1.5<br>
           个人家庭猫咪体重、体温、用药日常管理工具。<br>
           数据存储于本地或自建 Supabase，不上传第三方。
         </div>
@@ -447,12 +447,23 @@
         </div>
       </div>
       <div class="field">
-        <label>提醒时间</label>
+        <label>用药时间</label>
         <div v-for="(t, idx) in planForm.remind_times" :key="idx" class="time-row">
           <input class="input time-input" type="time" v-model="planForm.remind_times[idx]" />
           <button class="btn btn-sm btn-danger time-del" @click="removePlanTime(idx)" v-if="planForm.remind_times.length>1">删除</button>
         </div>
         <button class="btn btn-ghost btn-sm" @click="addPlanTime">+ 添加时间</button>
+      </div>
+      <div class="field">
+        <label>提醒</label>
+        <div class="seg-control">
+          <button type="button" :class="{active: !planForm.remind_before}" @click="planForm.remind_before=0">准时</button>
+          <button type="button" :class="{active: planForm.remind_before===5}" @click="planForm.remind_before=5">前5分</button>
+          <button type="button" :class="{active: planForm.remind_before===10}" @click="planForm.remind_before=10">前10分</button>
+          <button type="button" :class="{active: planForm.remind_before===15}" @click="planForm.remind_before=15">前15分</button>
+          <button type="button" :class="{active: planForm.remind_before===30}" @click="planForm.remind_before=30">前30分</button>
+        </div>
+        <div class="text-secondary text-sm mt-8">按用药时间提前提醒，如用药 08:00、提前10分钟 → 07:50 提醒</div>
       </div>
       <div class="field">
         <label>开始日期 *</label>
@@ -524,8 +535,8 @@
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 应用脚本 -->
-<script src="js/config.js?v=1.4"></script>
-<script src="js/store.js?v=1.4"></script>
-<script src="js/app.js?v=1.4"></script>
+<script src="js/config.js?v=1.5"></script>
+<script src="js/store.js?v=1.5"></script>
+<script src="js/app.js?v=1.5"></script>
 </body>
 </html>

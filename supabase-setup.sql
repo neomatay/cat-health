@@ -58,6 +58,7 @@ create table if not exists med_plans (
   freq_type text default 'daily',   -- daily 每天 | weekly 每周固定 | interval 每N天
   weekdays int[],                   -- weekly 用：0=周日 1=周一 ... 6=周六
   interval_days int,                -- interval 用：每 N 天一次（以 start_date 为第一次）
+  remind_before int default 0,      -- 提前提醒分钟数（0=准时，按用药时间提前）
   start_date date not null,
   end_date date,
   active boolean default true,
@@ -69,6 +70,8 @@ create table if not exists med_plans (
 -- alter table med_plans add column if not exists freq_type text default 'daily';
 -- alter table med_plans add column if not exists weekdays int[];
 -- alter table med_plans add column if not exists interval_days int;
+-- 老库升级（v1.5 新增提前提醒列）：
+-- alter table med_plans add column if not exists remind_before int default 0;
 create index if not exists idx_med_plans_cat on med_plans (cat_id);
 
 -- 用药打卡记录表
