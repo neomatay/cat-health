@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="icon.svg" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <title>猫咪健康</title>
-  <link rel="stylesheet" href="css/style.css?v=1.1" />
+  <link rel="stylesheet" href="css/style.css?v=1.2" />
   <style>[v-cloak] { display: none; }</style>
 </head>
 <body>
@@ -42,7 +42,7 @@
         <!-- 猫咪切换器 -->
         <div class="cat-switcher">
           <div v-for="c in cats" :key="c.id" class="cat-chip" :class="{active: c.id===currentCatId}" @click="switchCat(c.id)">
-            <span class="cat-emoji">🐱</span>{{ c.name }}
+            <img v-if="c.avatar" class="cat-avatar-sm" :src="c.avatar" alt=""><span v-else class="cat-emoji">🐱</span>{{ c.name }}
           </div>
           <div class="cat-chip" @click="openAddCat" style="color:var(--text-secondary)">+ 添加</div>
         </div>
@@ -116,7 +116,7 @@
         <!-- 猫咪切换器 -->
         <div class="cat-switcher">
           <div v-for="c in cats" :key="c.id" class="cat-chip" :class="{active: c.id===currentCatId}" @click="switchCat(c.id)">
-            <span class="cat-emoji">🐱</span>{{ c.name }}
+            <img v-if="c.avatar" class="cat-avatar-sm" :src="c.avatar" alt=""><span v-else class="cat-emoji">🐱</span>{{ c.name }}
           </div>
         </div>
 
@@ -168,7 +168,7 @@
       <template v-if="hasCats">
         <div class="cat-switcher">
           <div v-for="c in cats" :key="c.id" class="cat-chip" :class="{active: c.id===currentCatId}" @click="switchCat(c.id)">
-            <span class="cat-emoji">🐱</span>{{ c.name }}
+            <img v-if="c.avatar" class="cat-avatar-sm" :src="c.avatar" alt=""><span v-else class="cat-emoji">🐱</span>{{ c.name }}
           </div>
         </div>
 
@@ -219,8 +219,9 @@
         <div class="card-title">猫咪管理</div>
         <div v-if="cats.length===0" class="text-secondary text-sm">暂无猫咪</div>
         <div v-for="c in cats" :key="c.id" class="record-row">
-          <div class="rec-left">
-            <span class="rec-val">🐱 {{ c.name }}</span>
+          <div class="rec-left" style="align-items:center">
+            <img v-if="c.avatar" class="cat-avatar-lg" :src="c.avatar" alt="">
+            <span class="rec-val"><span v-if="!c.avatar">🐱 </span>{{ c.name }}</span>
             <span class="rec-date" v-if="c.breed">{{ c.breed }}</span>
             <span class="rec-note" v-if="c.birthday">生日 {{ c.birthday }}</span>
           </div>
@@ -264,7 +265,7 @@
       <div class="card">
         <div class="card-title">关于</div>
         <div class="info-note">
-          猫咪健康 PWA v1.1<br>
+          猫咪健康 PWA v1.2<br>
           个人家庭猫咪体重、体温、用药日常管理工具。<br>
           数据存储于本地或自建 Supabase，不上传第三方。
         </div>
@@ -298,6 +299,18 @@
       <div class="modal-header">
         <span class="modal-title">{{ modal.editCat ? '编辑猫咪' : '添加猫咪' }}</span>
         <button class="modal-close" @click="modal.addCat=false; modal.editCat=false">&times;</button>
+      </div>
+      <div class="field" style="text-align:center">
+        <label style="text-align:left">照片</label>
+        <div class="avatar-picker">
+          <label class="avatar-circle">
+            <img v-if="catForm.avatar" :src="catForm.avatar" alt="">
+            <span v-else>🐱</span>
+            <input type="file" accept="image/*" @change="onAvatarPick" style="display:none">
+          </label>
+          <div class="text-secondary text-sm mt-8">点击圆形区域选择照片（自动裁剪压缩）</div>
+          <button v-if="catForm.avatar" class="btn btn-sm btn-ghost mt-8" style="color:#ff3b30" @click="removeAvatar">移除照片</button>
+        </div>
       </div>
       <div class="field">
         <label>名字 *</label>
@@ -481,8 +494,8 @@
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 应用脚本 -->
-<script src="js/config.js?v=1.1"></script>
-<script src="js/store.js?v=1.1"></script>
-<script src="js/app.js?v=1.1"></script>
+<script src="js/config.js?v=1.2"></script>
+<script src="js/store.js?v=1.2"></script>
+<script src="js/app.js?v=1.2"></script>
 </body>
 </html>

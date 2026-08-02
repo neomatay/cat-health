@@ -49,7 +49,7 @@ createApp({
       addPlan: false, editPlan: false,
       joinFamily: false, importData: false
     });
-    var catForm = reactive({ name: '', breed: '', birthday: '' });
+    var catForm = reactive({ name: '', breed: '', birthday: '', avatar: '' });
     var editingCatId = ref(null);
     var weightForm = reactive({ id: null, cat_id: null, date: todayStr(), kg: '', note: '' });
     var tempForm = reactive({ id: null, cat_id: null, date: todayStr(), celsius: '', note: '' });
@@ -294,24 +294,50 @@ createApp({
 
     // ========== 猫咪管理 ==========
     function openAddCat() {
-      catForm.name = ''; catForm.breed = ''; catForm.birthday = '';
+      catForm.name = ''; catForm.breed = ''; catForm.birthday = ''; catForm.avatar = '';
       errors.name = '';
       modal.addCat = true;
     }
     function openEditCat(cat) {
       editingCatId.value = cat.id;
       catForm.name = cat.name; catForm.breed = cat.breed || ''; catForm.birthday = cat.birthday || '';
+      catForm.avatar = cat.avatar || '';
       errors.name = '';
       modal.editCat = true;
     }
+    // 照片选择：压缩为 240x240 正方形 JPEG（约 20-50KB），存为 base64 随家庭同步
+    function onAvatarPick(e) {
+      var file = e.target.files && e.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function () {
+        var img = new Image();
+        img.onload = function () {
+          var size = 240;
+          var canvas = document.createElement('canvas');
+          canvas.width = size; canvas.height = size;
+          var ctx = canvas.getContext('2d');
+          // 居中裁剪为正方形（cover 效果）
+          var s = Math.min(img.width, img.height);
+          var sx = (img.width - s) / 2, sy = (img.height - s) / 2;
+          ctx.drawImage(img, sx, sy, s, s, 0, 0, size, size);
+          catForm.avatar = canvas.toDataURL('image/jpeg', 0.8);
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+      e.target.value = ''; // 允许重复选同一文件
+    }
+    function removeAvatar() { catForm.avatar = ''; }
+
     async function saveCat(isEdit) {
       if (!catForm.name.trim()) { errors.name = '请输入名字'; return; }
       try {
         if (isEdit) {
-          await CatStore.updateCat(editingCatId.value, { name: catForm.name.trim(), breed: catForm.breed, birthday: catForm.birthday });
+          await CatStore.updateCat(editingCatId.value, { name: catForm.name.trim(), breed: catForm.breed, birthday: catForm.birthday, avatar: catForm.avatar });
           showToast('已更新');
         } else {
-          await CatStore.saveCat({ name: catForm.name.trim(), breed: catForm.breed, birthday: catForm.birthday });
+          await CatStore.saveCat({ name: catForm.name.trim(), breed: catForm.breed, birthday: catForm.birthday, avatar: catForm.avatar });
           showToast('已添加猫咪');
         }
         await loadCats();
@@ -597,7 +623,7 @@ createApp({
       switchTab, switchCat, showToast,
       markTaken, markSkipped,
       openAddWeight, openAddTemp, saveWeight, saveTemp, openEditRecord, deleteWeightRecord, deleteTempRecord,
-      openAddCat, openEditCat, saveCat,
+      openAddCat, openEditCat, saveCat, onAvatarPick, removeAvatar,
       openAddPlan, openEditPlan, savePlan, addPlanTime, removePlanTime, stopPlan,
       generateICS,
       renderChart,

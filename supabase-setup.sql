@@ -16,8 +16,12 @@ create table if not exists cats (
   name text not null,
   breed text,
   birthday date,
+  avatar text,  -- base64 压缩照片（240x240 JPEG，约20-50KB）
   created_at timestamptz default now()
 );
+
+-- 老库升级（v1.2 新增头像列）：已在使用的库执行下面这行即可
+-- alter table cats add column if not exists avatar text;
 
 -- 体重记录表
 create table if not exists weights (
