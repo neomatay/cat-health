@@ -214,7 +214,7 @@ struct FamilySetupView: View {
         Task {
             do {
                 // 验证家庭码可访问
-                _ = try await Supa.list(Cat.self, table: "cats", query: [
+                _ = try await Supa.list(SupaIdentifier.self, table: "cats", query: [
                     URLQueryItem(name: "select", value: "id"),
                     URLQueryItem(name: "family_id", value: "eq.\(fid)"),
                     URLQueryItem(name: "limit", value: "1")

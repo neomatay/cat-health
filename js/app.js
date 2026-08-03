@@ -343,6 +343,7 @@ createApp({
     }
 
     async function switchTab(tab) {
+      hideChartTip();
       activeTab.value = tab;
       if (tab === 'trend') { await nextTick(); renderChart(); }
     }
@@ -772,6 +773,17 @@ createApp({
     });
 
     watch([trendMetric, trendRange], function () { nextTick(renderChart); });
+
+    // 图表 tooltip 的 z-index 极高（9999999），会穿透弹层浮在最上面：
+    // 任何弹层打开时主动收起 tooltip
+    function hideChartTip() {
+      if (chartInstance) {
+        try { chartInstance.dispatchAction({ type: 'hideTip' }); } catch (e) { /* 图表未初始化时忽略 */ }
+      }
+    }
+    watch(modal, function (v) {
+      for (var k in v) { if (v[k]) { hideChartTip(); break; } }
+    }, { deep: true });
 
     // ========== 家庭同步 ==========
     function getFamilyId() { return CatStore.getFamilyId(); }

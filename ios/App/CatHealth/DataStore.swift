@@ -203,7 +203,7 @@ class DataStore: ObservableObject {
                 try await Supa.update(table: table, id: id, payload: ["date": date, valueKey: value, "note": note])
             } else {
                 // 同日去重：查当天是否已有记录，有则更新
-                let existing = try await Supa.list(WeightRecord.self, table: table, query: [
+                let existing = try await Supa.list(SupaIdentifier.self, table: table, query: [
                     URLQueryItem(name: "select", value: "id"),
                     URLQueryItem(name: "family_id", value: "eq.\(fid)"),
                     URLQueryItem(name: "cat_id", value: "eq.\(catId)"),

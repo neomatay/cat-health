@@ -17,6 +17,10 @@ enum SupaError: Error, LocalizedError {
     }
 }
 
+struct SupaIdentifier: Decodable {
+    let id: String
+}
+
 enum Supa {
     private static var base: String { Config.supabaseURL + "/rest/v1" }
 
@@ -73,7 +77,7 @@ func writeDoseLogFromNotification(planId: String, catId: String, time: String, s
     let today = DateKit.today()
     do {
         // 查是否已有当天该时间点的记录
-        let existing = try await Supa.list(MedLog.self, table: "med_logs", query: [
+        let existing = try await Supa.list(SupaIdentifier.self, table: "med_logs", query: [
             URLQueryItem(name: "select", value: "id"),
             URLQueryItem(name: "family_id", value: "eq.\(fid)"),
             URLQueryItem(name: "plan_id", value: "eq.\(planId)"),
