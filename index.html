@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="icon.svg" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <title>猫咪健康</title>
-  <link rel="stylesheet" href="css/style.css?v=2.5" />
+  <link rel="stylesheet" href="css/style.css?v=2.6" />
   <style>[v-cloak] { display: none; }</style>
 </head>
 <body>
@@ -252,7 +252,7 @@
                 </span>
               </div>
               <div class="dose-card-actions" v-if="t.status==='pending' || t.status==='overdue'">
-                <button class="secondary-command" type="button" @click="markSkipped(t)">标记漏服</button>
+                <button class="secondary-command" type="button" @click="markSkipped(t)">跳过本次</button>
                 <button class="primary-command" type="button" @click="markTaken(t)"><span v-html="iconSvg('check',16)"></span>记录已喂</button>
               </div>
             </div>
@@ -276,6 +276,7 @@
               </div>
               <div class="plan-actions">
                 <button class="icon-button sm" type="button" title="生成提醒日历" @click="generateICS(item)" v-html="iconSvg('calendar',16)"></button>
+                <button class="icon-button sm" type="button" title="查看执行历史" @click="showPlanHistory(item.plan.id)" v-html="iconSvg('history',16)"></button>
                 <button class="icon-button sm" type="button" title="编辑" @click="openEditPlan(item.plan)" v-html="iconSvg('edit',16)"></button>
                 <button class="icon-button sm danger" type="button" title="停用" @click="stopPlan(item)" v-html="iconSvg('x',16)"></button>
               </div>
@@ -299,11 +300,57 @@
                 <p class="plan-sub">{{ item.plan.start_date }} ~ {{ item.plan.end_date || '长期' }} · 完药率 {{ item.rate }}%</p>
               </div>
               <div class="plan-actions">
+                <button class="icon-button sm" type="button" title="查看执行历史" @click="showPlanHistory(item.plan.id)" v-html="iconSvg('history',16)"></button>
                 <button class="icon-button sm" type="button" title="编辑" @click="openEditPlan(item.plan)" v-html="iconSvg('edit',16)"></button>
                 <button class="icon-button sm danger" type="button" title="删除" @click="deletePlan(item)" v-html="iconSvg('x',16)"></button>
               </div>
             </div>
           </div>
+        </section>
+
+        <!-- 用药执行历史：只展示已经登记的日志 -->
+        <section class="section-block execution-history" id="med-execution-history">
+          <div class="section-header">
+            <div>
+              <h2>执行历史</h2>
+              <p class="section-caption">已登记的每一次用药都会保存在这里</p>
+            </div>
+            <span class="count-label">{{ executionHistory.length }} 条记录</span>
+          </div>
+          <div class="history-filters" aria-label="执行历史筛选">
+            <label>
+              <span>计划</span>
+              <select class="select" v-model="historyPlanId">
+                <option value="all">全部计划</option>
+                <option v-for="p in plans" :key="p.id" :value="p.id">{{ p.drug }}</option>
+              </select>
+            </label>
+            <label>
+              <span>状态</span>
+              <select class="select" v-model="historyStatus">
+                <option value="all">全部状态</option>
+                <option value="taken">已喂</option>
+                <option value="skipped">已跳过</option>
+                <option value="missed">漏服</option>
+              </select>
+            </label>
+          </div>
+          <div class="execution-list" v-if="visibleExecutionHistory.length">
+            <button class="execution-item" type="button" v-for="item in visibleExecutionHistory" :key="item.log.id" @click="openEditDoseLog(item)">
+              <span class="execution-date">{{ fmtDate(item.log.date) }}<small>{{ item.log.scheduled_time }}</small></span>
+              <span class="execution-copy">
+                <strong>{{ item.plan.drug }}</strong>
+                <small>{{ item.log.taken_at ? fmtDateTime(item.log.taken_at) + ' 登记' : '未记录实际时间' }}<template v-if="item.log.note"> · {{ item.log.note }}</template></small>
+              </span>
+              <span class="status" :class="doseLogStatusClass(item.log.status)">{{ doseLogStatusText(item.log.status) }}</span>
+              <span class="ic-gray" v-html="iconSvg('chevron',16)"></span>
+            </button>
+          </div>
+          <div v-else class="empty-block small">
+            <span class="empty-paw" v-html="iconSvg('history',24)"></span>
+            <p>{{ executionHistory.length ? '没有符合筛选条件的记录' : '完成一次用药打卡后，这里会显示执行记录' }}</p>
+          </div>
+          <button class="text-action history-more" type="button" v-if="historyLimit < executionHistory.length" @click="historyLimit += 10">查看更多记录 <span class="ic" v-html="iconSvg('chevron',15)"></span></button>
         </section>
       </template>
       <div v-else class="empty-page">
@@ -379,7 +426,7 @@
       <!-- 关于 -->
       <section class="section-block">
         <div class="section-header"><h2>关于</h2></div>
-        <div class="about-note">猫咪健康 PWA v2.5<br>数据存储于你的设备与家庭云端，不上传任何第三方。</div>
+        <div class="about-note">猫咪健康 PWA v2.6<br>数据存储于你的设备与家庭云端，不上传任何第三方。</div>
       </section>
     </div>
   </main>
@@ -675,6 +722,36 @@
     </div>
   </div>
 
+  <!-- ==================== 弹层：编辑用药执行记录 ==================== -->
+  <div class="modal-overlay" v-if="modal.editDoseLog" @click.self="modal.editDoseLog=false">
+    <div class="modal-sheet">
+      <div class="sheet-grabber"></div>
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title">编辑执行记录</h2>
+          <p class="modal-sub">{{ editingDosePlan ? editingDosePlan.drug : '用药记录' }} · {{ editingDoseLog ? fmtDate(editingDoseLog.date) + ' ' + editingDoseLog.scheduled_time : '' }}</p>
+        </div>
+        <button class="modal-close" type="button" @click="modal.editDoseLog=false">&times;</button>
+      </div>
+      <div class="field">
+        <label>执行状态</label>
+        <div class="seg-control dose-status-control">
+          <button type="button" :class="{active: doseLogForm.status==='taken'}" @click="doseLogForm.status='taken'">已喂</button>
+          <button type="button" :class="{active: doseLogForm.status==='skipped'}" @click="doseLogForm.status='skipped'">已跳过</button>
+          <button type="button" :class="{active: doseLogForm.status==='missed'}" @click="doseLogForm.status='missed'">漏服</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>备注</label>
+        <textarea class="textarea" v-model="doseLogForm.note" placeholder="如：饭后喂食、吐出后补喂"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="primary-command full" type="button" @click="saveDoseLog"><span v-html="iconSvg('check',17)"></span>保存修改</button>
+        <button class="btn btn-block btn-ghost danger-text" type="button" @click="deleteDoseLog">删除这条记录</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ==================== 弹层：加入家庭 ==================== -->
   <div class="modal-overlay" v-if="modal.joinFamily" @click.self="modal.joinFamily=false">
     <div class="modal-sheet">
@@ -729,8 +806,8 @@
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- 应用脚本 -->
-<script src="js/config.js?v=2.5"></script>
-<script src="js/store.js?v=2.5"></script>
-<script src="js/app.js?v=2.5"></script>
+<script src="js/config.js?v=2.6"></script>
+<script src="js/store.js?v=2.6"></script>
+<script src="js/app.js?v=2.6"></script>
 </body>
 </html>

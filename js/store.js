@@ -261,17 +261,56 @@
       var fid = getFamilyId();
       opts = opts || {};
       if (isSyncMode()) {
-        var q = supa.from('med_logs').select('*').eq('family_id', fid);
-        if (opts.plan_id) q = q.eq('plan_id', opts.plan_id);
-        if (opts.date) q = q.eq('date', opts.date);
-        return q.then(function (r) { return r.data || []; });
+        var pageSize = 1000;
+        function fetchPage(offset, collected) {
+          var q = supa.from('med_logs').select('*').eq('family_id', fid);
+          if (opts.cat_id) q = q.eq('cat_id', opts.cat_id);
+          if (opts.plan_id) q = q.eq('plan_id', opts.plan_id);
+          if (opts.date) q = q.eq('date', opts.date);
+          return q.order('date', { ascending: false })
+            .order('scheduled_time', { ascending: false })
+            .order('id', { ascending: false })
+            .range(offset, offset + pageSize - 1)
+            .then(function (r) {
+              if (r.error) throw r.error;
+              var rows = r.data || [];
+              collected.push.apply(collected, rows);
+              return rows.length === pageSize ? fetchPage(offset + pageSize, collected) : collected;
+            });
+        }
+        return fetchPage(0, []);
       }
       return Promise.resolve(localList('med_logs', function (l) {
         if (l.family_id !== fid) return false;
+        if (opts.cat_id && l.cat_id !== opts.cat_id) return false;
         if (opts.plan_id && l.plan_id !== opts.plan_id) return false;
         if (opts.date && l.date !== opts.date) return false;
         return true;
       }));
+    },
+    updateMedLog: function (id, patch) {
+      if (isSyncMode()) {
+        return supa.from('med_logs').update(patch).eq('id', id).eq('family_id', getFamilyId()).select()
+          .then(function (r) {
+            if (r.error) throw r.error;
+            if (!r.data || !r.data.length) throw new Error('用药记录不存在');
+            return r.data[0];
+          });
+      }
+      var log = localList('med_logs', function (l) { return l.id === id && l.family_id === getFamilyId(); })[0];
+      if (!log) return Promise.reject(new Error('用药记录不存在'));
+      localUpdate('med_logs', id, patch);
+      return Promise.resolve(Object.assign({}, log, patch));
+    },
+    deleteMedLog: function (id) {
+      if (isSyncMode()) {
+        return supa.from('med_logs').delete().eq('id', id).eq('family_id', getFamilyId())
+          .then(function (r) { if (r.error) throw r.error; });
+      }
+      var log = localList('med_logs', function (l) { return l.id === id && l.family_id === getFamilyId(); })[0];
+      if (!log) return Promise.reject(new Error('用药记录不存在'));
+      localDelete('med_logs', id);
+      return Promise.resolve();
     },
     // 查找某条计划在 date+scheduled_time 的打卡记录
     findMedLog: function (planId, date, time) {

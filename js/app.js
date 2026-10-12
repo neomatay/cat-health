@@ -36,6 +36,11 @@ createApp({
     var temps = ref([]);
     var plans = ref([]);
     var allLogs = ref([]); // 当前猫咪所有用药打卡记录
+    var historyPlanId = ref('all');
+    var historyStatus = ref('all');
+    var historyLimit = ref(10);
+    var editingDoseLogId = ref(null);
+    var doseLogForm = reactive({ status: 'taken', note: '' });
 
     // 趋势
     var trendMetric = ref('weight'); // weight | temp
@@ -48,7 +53,7 @@ createApp({
       addCat: false, editCat: false,
       addWeight: false, addTemp: false, quickRecord: false, reminders: false,
       addPlan: false, editPlan: false,
-      joinFamily: false, importData: false
+      editDoseLog: false, joinFamily: false, importData: false
     });
     var catForm = reactive({ name: '', breed: '', birthday: '', avatar: '' });
     var editingCatId = ref(null);
@@ -88,7 +93,8 @@ createApp({
       copy: '<rect x="8" y="8" width="14" height="14" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
       download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>',
       upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>',
-      edit: '<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>'
+      edit: '<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>',
+      history: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
     };
     function iconSvg(name, size) {
       var s = size || 20;
@@ -300,6 +306,71 @@ createApp({
       });
     });
 
+    // 执行历史只展示真正保存的日志；未打卡不等同于漏服。
+    var executionHistory = computed(function () {
+      var planById = {};
+      plans.value.forEach(function (p) { planById[p.id] = p; });
+      return allLogs.value.filter(function (log) {
+        return log.cat_id === currentCatId.value && planById[log.plan_id] &&
+          (historyPlanId.value === 'all' || log.plan_id === historyPlanId.value) &&
+          (historyStatus.value === 'all' || log.status === historyStatus.value);
+      }).map(function (log) { return { log: log, plan: planById[log.plan_id] }; })
+        .sort(function (a, b) {
+          return (b.log.date + ' ' + b.log.scheduled_time).localeCompare(a.log.date + ' ' + a.log.scheduled_time) ||
+            (b.log.created_at || '').localeCompare(a.log.created_at || '');
+        });
+    });
+    var visibleExecutionHistory = computed(function () { return executionHistory.value.slice(0, historyLimit.value); });
+    var editingDoseLog = computed(function () {
+      return allLogs.value.find(function (log) { return log.id === editingDoseLogId.value; }) || null;
+    });
+    var editingDosePlan = computed(function () {
+      return editingDoseLog.value && plans.value.find(function (p) { return p.id === editingDoseLog.value.plan_id; });
+    });
+    watch([historyPlanId, historyStatus], function () { historyLimit.value = 10; });
+
+    function doseLogStatusText(status) {
+      return status === 'taken' ? '已喂' : status === 'skipped' ? '已跳过' : '漏服';
+    }
+    function doseLogStatusClass(status) {
+      return status === 'taken' ? 'done' : 'missed';
+    }
+    function showPlanHistory(planId) {
+      historyPlanId.value = planId;
+      historyStatus.value = 'all';
+      nextTick(function () {
+        document.getElementById('med-execution-history').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
+    function openEditDoseLog(item) {
+      editingDoseLogId.value = item.log.id;
+      doseLogForm.status = item.log.status;
+      doseLogForm.note = item.log.note || '';
+      modal.editDoseLog = true;
+    }
+    async function saveDoseLog() {
+      var log = editingDoseLog.value;
+      if (!log) return;
+      var patch = { status: doseLogForm.status, note: doseLogForm.note.trim() };
+      patch.taken_at = patch.status === 'taken' ? (log.status === 'taken' && log.taken_at ? log.taken_at : new Date().toISOString()) : null;
+      try {
+        await CatStore.updateMedLog(log.id, patch);
+        await refreshLogs();
+        modal.editDoseLog = false;
+        showToast('执行记录已更新');
+      } catch (e) { console.error(e); showToast('更新失败'); }
+    }
+    async function deleteDoseLog() {
+      var log = editingDoseLog.value;
+      if (!log || !confirm('确定删除这条用药记录吗？')) return;
+      try {
+        await CatStore.deleteMedLog(log.id);
+        await refreshLogs();
+        modal.editDoseLog = false;
+        showToast('执行记录已删除');
+      } catch (e) { console.error(e); showToast('删除失败'); }
+    }
+
     // ========== Toast ==========
     function showToast(msg) {
       toastMsg.value = msg;
@@ -320,24 +391,24 @@ createApp({
         var results = await Promise.all([
           CatStore.getWeights(catId),
           CatStore.getTemps(catId),
-          CatStore.getMedPlans(catId)
+          CatStore.getMedPlans(catId),
+          CatStore.getMedLogs({ cat_id: catId })
         ]);
         weights.value = results[0];
         temps.value = results[1];
         plans.value = results[2];
-        // 加载所有计划的打卡记录
-        var logsArr = [];
-        for (var i = 0; i < plans.value.length; i++) {
-          var logs = await CatStore.getMedLogs({ plan_id: plans.value[i].id });
-          logsArr = logsArr.concat(logs);
+        allLogs.value = results[3];
+        if (historyPlanId.value !== 'all' && !plans.value.some(function (p) { return p.id === historyPlanId.value; })) {
+          historyPlanId.value = 'all';
         }
-        allLogs.value = logsArr;
       } catch (e) { console.error(e); showToast('加载数据失败'); }
       finally { loading.value = false; }
     }
 
     async function switchCat(id) {
       currentCatId.value = id;
+      historyPlanId.value = 'all';
+      historyStatus.value = 'all';
       await loadCatData(id);
       if (activeTab.value === 'trend') { await nextTick(); renderChart(); }
     }
@@ -372,12 +443,7 @@ createApp({
     }
 
     async function refreshLogs() {
-      var logsArr = [];
-      for (var i = 0; i < plans.value.length; i++) {
-        var logs = await CatStore.getMedLogs({ plan_id: plans.value[i].id });
-        logsArr = logsArr.concat(logs);
-      }
-      allLogs.value = logsArr;
+      allLogs.value = await CatStore.getMedLogs({ cat_id: currentCatId.value });
     }
 
     // ========== 快速记录：体重/体温 ==========
@@ -883,6 +949,8 @@ createApp({
     return {
       activeTab, showCatMenu, loading, toastMsg, cats, currentCatId, currentCat, hasCats,
       weights, temps, plans, allLogs, todayTasks, todayPending, recentRecords, planList,
+      historyPlanId, historyStatus, historyLimit, executionHistory, visibleExecutionHistory,
+      editingDoseLog, editingDosePlan, doseLogForm, doseLogStatusText, doseLogStatusClass,
       trendMetric, trendRange, chartRef, trendStats,
       modal, catForm, editingCatId, weightForm, tempForm, planForm, editingPlanId,
       joinCode, importText, errors,
@@ -892,7 +960,7 @@ createApp({
       doseDone, doseTotal, nextDose, careTip, trendRecords,
       iconSvg, catAge, editCurrentCat, openQuickRecord, pickRecordType, remindTimeOf, activePlans,
       switchTab, switchCat, showToast,
-      markTaken, markSkipped,
+      markTaken, markSkipped, showPlanHistory, openEditDoseLog, saveDoseLog, deleteDoseLog,
       openAddWeight, openAddTemp, saveWeight, saveTemp, openEditRecord, deleteWeightRecord, deleteTempRecord,
       openAddCat, openEditCat, saveCat, onAvatarPick, removeAvatar,
       openAddPlan, openEditPlan, savePlan, addPlanTime, removePlanTime, stopPlan, deletePlan, deletePlanFromModal,
